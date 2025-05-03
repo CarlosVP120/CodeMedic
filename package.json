@@ -1,0 +1,102 @@
+{
+  "name": "codemedic",
+  "displayName": "CodeMedic",
+  "description": "Manage and resolve GitHub issues directly within VSCode",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "Other",
+    "SCM Providers"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:codemedic-issues"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codemedic.refreshIssues",
+        "title": "Refresh Issues",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "codemedic.solveIssue",
+        "title": "Solve Issue",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "codemedic.showSolution",
+        "title": "Show How to Solve",
+        "icon": "$(lightbulb)"
+      },
+      {
+        "command": "codemedic.authenticate",
+        "title": "Authenticate with GitHub"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codemedic-sidebar",
+          "title": "CodeMedic",
+          "icon": "$(bug)"
+        }
+      ]
+    },
+    "views": {
+      "codemedic-sidebar": [
+        {
+          "id": "codemedic-issues",
+          "name": "GitHub Issues"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "codemedic.refreshIssues",
+          "when": "view == codemedic-issues",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "codemedic.solveIssue",
+          "when": "view == codemedic-issues",
+          "group": "inline"
+        },
+        {
+          "command": "codemedic.showSolution",
+          "when": "view == codemedic-issues",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.1.0",
+    "simple-git": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.99.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
