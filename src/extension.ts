@@ -39,6 +39,34 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  // Registro de evento para abrir archivos desde WebView
+  context.subscriptions.push(
+    vscode.window.registerWebviewPanelSerializer("issueSolution", {
+      async deserializeWebviewPanel(
+        webviewPanel: vscode.WebviewPanel,
+        state: any
+      ) {
+        // Restaurar el estado del panel si es necesario
+        webviewPanel.webview.html = state?.html || "";
+
+        // No es necesario recrear el manejo de mensajes aquí, ya que se maneja en SolutionService
+      },
+    })
+  );
+
+  // Register webview serializer for code fix panel
+  context.subscriptions.push(
+    vscode.window.registerWebviewPanelSerializer("codeFixPanel", {
+      async deserializeWebviewPanel(
+        webviewPanel: vscode.WebviewPanel,
+        state: any
+      ) {
+        // Just restore the HTML content - actual handling is managed by the CodeFixPanel class
+        webviewPanel.webview.html = state?.html || "";
+      },
+    })
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "codemedic.showSolution",
@@ -57,6 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Only process actual issues (not placeholder items)
         if (issueItem.contextValue === "issue") {
+          // Mostrar la solución - el manejo de mensajes ya está configurado dentro de showSolution
           await solutionService.showSolution(issueItem.issue);
         } else {
           vscode.window.showErrorMessage("Please select a valid GitHub issue.");

@@ -37,6 +37,16 @@
         "title": "Authenticate with GitHub"
       }
     ],
+    "configuration": {
+      "title": "CodeMedic",
+      "properties": {
+        "codemedic.openaiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for OpenAI to enable AI-powered issue solutions"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -86,6 +96,7 @@
   },
   "dependencies": {
     "@octokit/rest": "^20.1.0",
+    "axios": "^1.6.7",
     "simple-git": "^3.23.0"
   },
   "devDependencies": {
