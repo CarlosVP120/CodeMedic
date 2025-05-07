@@ -1,6 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Dict, Any
+import sys
+import os
+
+# Add the project root to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from agent.fixer import CodeFixerAgent
 
 router = APIRouter()
