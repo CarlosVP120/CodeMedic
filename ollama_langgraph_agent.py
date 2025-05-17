@@ -296,8 +296,25 @@ def get_file_content(file_path: str) -> str:
     except Exception as e:
         return f"Error al obtener el contenido del archivo: {str(e)}"
 
+@tool
+def create_local_file(file_path: str, content: str) -> str:
+    """
+    Crea o sobreescribe un archivo local con el contenido proporcionado.
+    Args:
+        file_path: Ruta local donde se creará el archivo.
+        content: Contenido que se escribirá en el archivo.
+    Returns:
+        str: Mensaje de éxito o error.
+    """
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Archivo local creado/actualizado exitosamente en: {file_path}"
+    except Exception as e:
+        return f"Error al crear el archivo local: {str(e)}"
+
 # Configuración del agente
-tools = [analyze_issue, create_pull_request, list_repo_files, get_file_content]
+tools = [analyze_issue, create_pull_request, list_repo_files, get_file_content, create_local_file]
 tool_node = ToolNode(tools)
 model = ChatOllama(model="qwen3:8b")
 
@@ -472,6 +489,140 @@ def human_review(state: State):
     
     return state
 
+def prepare_code_changes(state: State):
+    """Prepara los cambios de código basados en el análisis."""
+    print("\n💻 Preparando cambios de código...")
+    
+    if not state.get('analysis') or not state.get('files_analysis'):
+        print("❌ No hay análisis suficiente para proponer cambios")
+        return state
+    
+    try:
+        # Obtener el archivo que necesita cambios
+        file_path = state['files_analysis']['archivos_relacionados'][0]['ruta']
+        
+        # Obtener el contenido actual del archivo
+        current_content = get_file_content.invoke(file_path)
+        
+        # Crear prompt para el LLM
+        prompt = f"""
+        Aquí está el contenido actual del archivo {file_path}:
+        ```
+        {current_content}
+        ```
+        
+        Basado en el análisis del issue, genera el código corregido.
+        Responde SOLO con el código corregido, sin explicaciones ni pensamientos adicionales.
+        """
+        
+        # Obtener el nuevo contenido del LLM
+        messages = [HumanMessage(content=prompt)]
+        response = model.invoke(messages)
+        corrected_content = response.content.strip()
+        
+        # Eliminar los marcadores de código si existen
+        if corrected_content.startswith("```"):
+            corrected_content = corrected_content.split("\n", 1)[1]
+        if corrected_content.endswith("```"):
+            corrected_content = corrected_content.rsplit("\n", 1)[0]
+        
+        # Filtrar el contenido para asegurarse de que solo se incluya el código
+        corrected_content = "\n".join([line for line in corrected_content.split("\n") if not line.strip().startswith("<think>") and not line.strip().endswith("</think>") and not line.strip().startswith("```")])
+        
+        # Guardar los cambios propuestos
+        state['proposed_changes'] = {
+            file_path: corrected_content
+        }
+        
+        # Crear el archivo local con la corrección
+        local_file_path = f"fixed_{file_path}"
+        create_local_file.invoke({"file_path": local_file_path, "content": corrected_content})
+        print(f"✅ Archivo local creado en: {local_file_path}")
+        
+        return state
+    except Exception as e:
+        print(f"\n⚠️ Error al preparar los cambios: {str(e)}")
+        return state
+
+def review_code_changes(state: State):
+    if not state.get('proposed_changes'):
+        print("❌ No hay cambios propuestos para revisar")
+        return state
+
+    print("\n👥 Revisión de Cambios de Código")
+    print("==============================")
+
+    to_remove = []
+    for file_path, new_content in list(state['proposed_changes'].items()):
+        print(f"\n📄 Archivo: {file_path}")
+        print("Cambios propuestos:")
+        print("------------------")
+        print(new_content)
+
+        while True:
+            user_input = input("\n¿Aceptas estos cambios? (yes/no/modify): ").lower()
+            if user_input in ['yes', 'no', 'modify']:
+                if user_input == 'yes':
+                    break
+                elif user_input == 'no':
+                    to_remove.append(file_path)
+                    break
+                else:  # modify
+                    print("\nModificando cambios...")
+                    new_content = input("Ingresa el nuevo contenido del archivo:\n")
+                    state['proposed_changes'][file_path] = new_content
+                    break
+            print("Por favor, responde con 'yes', 'no' o 'modify'")
+
+    for file_path in to_remove:
+        state['proposed_changes'].pop(file_path)
+
+    return state
+
+def analyze_issue(state: State):
+    """Analiza el issue y genera un análisis estructurado."""
+    print("\n🔍 Analizando issue...")
+    
+    # Crear prompt para el análisis
+    prompt = f"""
+    Analiza el siguiente issue de GitHub y proporciona una respuesta estructurada:
+    
+    Issue #{state['issue'].number}: {state['issue'].title}
+    Descripción: {state['issue'].body}
+    
+    Por favor, proporciona tu análisis en el siguiente formato JSON:
+    {{
+        "issue_number": {state['issue'].number},
+        "summary": "Resumen conciso del problema",
+        "impact": "Impacto potencial del problema",
+        "affected_areas": ["Lista de áreas afectadas"],
+        "recommendations": ["Lista de recomendaciones"],
+        "technical_details": {{
+            "created_at": "{state['issue'].created_at.isoformat()}",
+            "updated_at": "{state['issue'].updated_at.isoformat()}",
+            "state": "{state['issue'].state}"
+        }},
+        "solution": "Solución propuesta para el problema"
+    }}
+    """
+    
+    messages = [HumanMessage(content=prompt)]
+    response = model.invoke(messages)
+    
+    try:
+        content = response.content.strip()
+        json_start = content.find('{')
+        json_end = content.rfind('}') + 1
+        if json_start >= 0 and json_end > json_start:
+            content = content[json_start:json_end]
+        
+        state['analysis'] = IssueAnalysis(**json.loads(content))
+        print("\n✅ Análisis del issue completado")
+        return state
+    except Exception as e:
+        print(f"\n⚠️ Error al analizar el issue: {str(e)}")
+        return state
+
 def create_pull_request(state: State):
     """Crea el pull request si fue aprobado por el usuario."""
     if not state.get('user_approval'):
@@ -484,8 +635,18 @@ def create_pull_request(state: State):
     
     print("\n🚀 Creando pull request...")
     try:
-        result = create_pull_request.invoke(state['pr_data'].model_dump())
-        print(f"✅ {result}")
+        # Obtener el repositorio
+        repo = github_client.get_repo(GITHUB_REPOSITORY)
+        
+        # Crear el pull request
+        pull_request = repo.create_pull(
+            title=state['pr_data'].title,
+            body=state['pr_data'].body,
+            head=f"{state['pr_data'].head_branch}/issue-{state['pr_data'].issue_number}",
+            base=state['pr_data'].base_branch
+        )
+        
+        print(f"✅ Pull request creado: {pull_request.html_url}")
     except Exception as e:
         print(f"❌ Error al crear el pull request: {str(e)}")
     
@@ -539,135 +700,6 @@ def modify_file(file_path: str, changes: str) -> str:
         return new_content
     except Exception as e:
         return f"Error al modificar el archivo: {str(e)}"
-
-def prepare_code_changes(state: State):
-    """Prepara los cambios de código basados en el análisis."""
-    print("\n💻 Preparando cambios de código...")
-    
-    if not state.get('analysis') or not state.get('files_analysis'):
-        print("❌ No hay análisis suficiente para proponer cambios")
-        return state
-    
-    # Crear prompt para generar los cambios
-    prompt = f"""
-    Basado en el siguiente análisis, genera los cambios necesarios para resolver el issue:
-    
-    Análisis del Issue:
-    {state['analysis'].model_dump_json(indent=2)}
-    
-    Archivos Relacionados:
-    {json.dumps(state['files_analysis'], indent=2)}
-    
-    Para cada archivo que necesite cambios, proporciona un JSON con la siguiente estructura:
-    {{
-        "archivo": "ruta/al/archivo",
-        "cambios": "Descripción detallada de los cambios necesarios",
-        "razon": "Explicación de por qué se necesitan estos cambios"
-    }}
-    """
-    
-    messages = [HumanMessage(content=prompt)]
-    response = model.invoke(messages)
-    
-    try:
-        content = response.content.strip()
-        json_start = content.find('{')
-        json_end = content.rfind('}') + 1
-        if json_start >= 0 and json_end > json_start:
-            content = content[json_start:json_end]
-        
-        changes_data = json.loads(content)
-        state['proposed_changes'] = {}
-        
-        # Aplicar cambios a cada archivo
-        for change in changes_data:
-            print(f"\n📝 Aplicando cambios a {change['archivo']}...")
-            print(f"Razón: {change['razon']}")
-            
-            new_content = modify_file.invoke(change['archivo'], change['cambios'])
-            state['proposed_changes'][change['archivo']] = new_content
-            
-            print("✅ Cambios aplicados correctamente")
-        
-        return state
-    except Exception as e:
-        print(f"\n⚠️ Error al preparar los cambios: {str(e)}")
-        return state
-
-def review_code_changes(state: State):
-    """Permite al usuario revisar los cambios propuestos."""
-    if not state.get('proposed_changes'):
-        print("❌ No hay cambios propuestos para revisar")
-        return state
-    
-    print("\n👥 Revisión de Cambios de Código")
-    print("==============================")
-    
-    for file_path, new_content in state['proposed_changes'].items():
-        print(f"\n📄 Archivo: {file_path}")
-        print("Cambios propuestos:")
-        print("------------------")
-        print(new_content)
-        
-        while True:
-            user_input = input("\n¿Aceptas estos cambios? (yes/no/modify): ").lower()
-            if user_input in ['yes', 'no', 'modify']:
-                if user_input == 'yes':
-                    continue
-                elif user_input == 'no':
-                    state['proposed_changes'].pop(file_path)
-                else:  # modify
-                    print("\nModificando cambios...")
-                    new_content = input("Ingresa el nuevo contenido del archivo:\n")
-                    state['proposed_changes'][file_path] = new_content
-                break
-            print("Por favor, responde con 'yes', 'no' o 'modify'")
-    
-    return state
-
-def analyze_issue(state: State):
-    """Analiza el issue y genera un análisis estructurado."""
-    print("\n🔍 Analizando issue...")
-    
-    # Crear prompt para el análisis
-    prompt = f"""
-    Analiza el siguiente issue de GitHub y proporciona una respuesta estructurada:
-    
-    Issue #{state['issue'].number}: {state['issue'].title}
-    Descripción: {state['issue'].body}
-    
-    Por favor, proporciona tu análisis en el siguiente formato JSON:
-    {{
-        "issue_number": {state['issue'].number},
-        "summary": "Resumen conciso del problema",
-        "impact": "Impacto potencial del problema",
-        "affected_areas": ["Lista de áreas afectadas"],
-        "recommendations": ["Lista de recomendaciones"],
-        "technical_details": {{
-            "created_at": "{state['issue'].created_at.isoformat()}",
-            "updated_at": "{state['issue'].updated_at.isoformat()}",
-            "state": "{state['issue'].state}"
-        }},
-        "solution": "Solución propuesta para el problema"
-    }}
-    """
-    
-    messages = [HumanMessage(content=prompt)]
-    response = model.invoke(messages)
-    
-    try:
-        content = response.content.strip()
-        json_start = content.find('{')
-        json_end = content.rfind('}') + 1
-        if json_start >= 0 and json_end > json_start:
-            content = content[json_start:json_end]
-        
-        state['analysis'] = IssueAnalysis(**json.loads(content))
-        print("\n✅ Análisis del issue completado")
-        return state
-    except Exception as e:
-        print(f"\n⚠️ Error al analizar el issue: {str(e)}")
-        return state
 
 def main():
     # Obtener issues de GitHub
