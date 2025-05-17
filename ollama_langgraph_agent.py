@@ -231,27 +231,57 @@ def create_pull_request(pr_data: dict) -> str:
     except Exception as e:
         return f"Error al crear el pull request: {str(e)}"
 
-# Tool para listar archivos en el repo (recursivo)
 @tool
-def list_repo_files(path: str = "") -> list:
+def list_repo_files(path: str = "") -> str:
     """
-    Lista todos los archivos en el repositorio de GitHub, comenzando desde el path dado (vacío para raíz).
+    Lista todos los archivos en el repositorio de GitHub de manera formateada.
+    Args:
+        path: Ruta opcional para listar archivos desde un directorio específico
+    Returns:
+        str: Lista formateada de archivos y directorios
     """
     try:
         repo = github_client.get_repo(GITHUB_REPOSITORY)
-        files = []
-
-        def _list_files_recursive(path):
-            contents = repo.get_contents(path)
-            for content_file in contents:
-                if content_file.type == "dir":
-                    _list_files_recursive(content_file.path)
-                else:
-                    files.append(content_file.path)
+        output = []
+        
+        def _list_files_recursive(path, level=0):
+            try:
+                contents = repo.get_contents(path)
+                for content in contents:
+                    # Crear indentación basada en el nivel
+                    indent = "  " * level
+                    if content.type == "dir":
+                        output.append(f"{indent}📁 {content.name}/")
+                        _list_files_recursive(content.path, level + 1)
+                    else:
+                        # Obtener la extensión del archivo
+                        ext = os.path.splitext(content.name)[1]
+                        # Seleccionar emoji basado en la extensión
+                        emoji = {
+                            '.py': '🐍',
+                            '.js': '📜',
+                            '.html': '🌐',
+                            '.css': '🎨',
+                            '.json': '📋',
+                            '.md': '📝',
+                            '.txt': '📄',
+                            '.gitignore': '🚫',
+                            '.env': '🔑',
+                            '': '📄'
+                        }.get(ext, '📄')
+                        output.append(f"{indent}{emoji} {content.name}")
+            except Exception as e:
+                output.append(f"{indent}❌ Error al acceder a {path}: {str(e)}")
+        
+        print("\n📂 Listando archivos del repositorio...")
         _list_files_recursive(path)
-        return files
+        
+        if not output:
+            return "No se encontraron archivos en el repositorio."
+        
+        return "\n".join(output)
     except Exception as e:
-        return [f"Error al listar archivos: {str(e)}"]
+        return f"Error al listar archivos: {str(e)}"
 
 # Tool para extraer el contenido de un archivo
 @tool
