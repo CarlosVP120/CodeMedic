@@ -8,7 +8,7 @@ from langgraph.prebuilt import ToolNode
 from github import Github
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TypedDict
 from datetime import datetime
 import json
 
@@ -329,6 +329,346 @@ workflow.add_edge("call_tool", "agent_reasoning")
 memory = MemorySaver()
 app = workflow.compile(checkpointer=memory, interrupt_before=["call_tool"])
 
+# Definir la estructura del estado
+class State(TypedDict):
+    issue: GitHubIssue
+    analysis: Optional[IssueAnalysis]
+    pr_data: Optional[PullRequestData]
+    files_analysis: Optional[dict]
+    user_approval: Optional[bool]
+    proposed_changes: Optional[Dict[str, str]]
+
+def analyze_files(state: State):
+    """Analiza los archivos relacionados con el issue."""
+    print("\n🔍 Analizando archivos relacionados...")
+    
+    # Obtener la estructura de archivos
+    files = list_repo_files.invoke("")
+    
+    # Crear prompt para sugerir archivos relacionados
+    prompt = f"""
+    Analiza el siguiente issue y la lista de archivos del repositorio para identificar los archivos potencialmente relacionados con el problema.
+
+    Issue:
+    Título: {state['issue'].title}
+    Descripción: {state['issue'].body}
+
+    Lista de archivos disponibles:
+    {files}
+
+    IMPORTANTE: Debes responder EXACTAMENTE en el siguiente formato JSON, sin texto adicional:
+    {{
+        "archivos_relacionados": [
+            {{
+                "ruta": "ruta/al/archivo",
+                "razon": "Breve explicación de por qué este archivo está relacionado",
+                "probabilidad": "alta/media/baja"
+            }}
+        ],
+        "archivos_a_revisar": [
+            {{
+                "ruta": "ruta/al/archivo",
+                "razon": "Breve explicación de por qué deberíamos revisar este archivo"
+            }}
+        ],
+        "archivos_a_ignorar": [
+            {{
+                "ruta": "ruta/al/archivo",
+                "razon": "Breve explicación de por qué podemos ignorar este archivo"
+            }}
+        ]
+    }}
+    """
+    
+    messages = [HumanMessage(content=prompt)]
+    response = model.invoke(messages)
+    
+    try:
+        content = response.content.strip()
+        json_start = content.find('{')
+        json_end = content.rfind('}') + 1
+        if json_start >= 0 and json_end > json_start:
+            content = content[json_start:json_end]
+        
+        state['files_analysis'] = json.loads(content)
+        return state
+    except json.JSONDecodeError as e:
+        print(f"\n⚠️ Error al procesar la respuesta del LLM: {str(e)}")
+        state['files_analysis'] = {"archivos_relacionados": [], "archivos_a_revisar": [], "archivos_a_ignorar": []}
+        return state
+
+def prepare_pull_request(state: State):
+    """Prepara los datos para el pull request basado en el análisis."""
+    print("\n📝 Preparando pull request...")
+    
+    if not state.get('analysis') or not state.get('files_analysis'):
+        print("❌ No hay análisis suficiente para crear un pull request")
+        return state
+    
+    # Crear prompt para generar el pull request
+    prompt = f"""
+    Basado en el siguiente análisis, genera los datos para un pull request:
+    
+    Análisis del Issue:
+    {state['analysis'].model_dump_json(indent=2)}
+    
+    Archivos Relacionados:
+    {json.dumps(state['files_analysis'], indent=2)}
+    
+    Genera un JSON con la siguiente estructura:
+    {{
+        "title": "Título del PR",
+        "body": "Descripción detallada del PR",
+        "head_branch": "rama-de-origen",
+        "base_branch": "main",
+        "issue_number": {state['issue'].number}
+    }}
+    """
+    
+    messages = [HumanMessage(content=prompt)]
+    response = model.invoke(messages)
+    
+    try:
+        content = response.content.strip()
+        json_start = content.find('{')
+        json_end = content.rfind('}') + 1
+        if json_start >= 0 and json_end > json_start:
+            content = content[json_start:json_end]
+        
+        state['pr_data'] = PullRequestData(**json.loads(content))
+        return state
+    except Exception as e:
+        print(f"\n⚠️ Error al preparar el pull request: {str(e)}")
+        return state
+
+def human_review(state: State):
+    """Permite al usuario revisar y aprobar el pull request."""
+    if not state.get('pr_data'):
+        print("❌ No hay datos de pull request para revisar")
+        return state
+    
+    print("\n👥 Revisión Humana del Pull Request")
+    print("==================================")
+    print(f"Título: {state['pr_data'].title}")
+    print(f"Descripción: {state['pr_data'].body}")
+    print(f"Rama de origen: {state['pr_data'].head_branch}")
+    print(f"Rama destino: {state['pr_data'].base_branch}")
+    print(f"Issue relacionado: #{state['pr_data'].issue_number}")
+    
+    while True:
+        user_input = input("\n¿Deseas aprobar este pull request? (yes/no/modify): ").lower()
+        if user_input in ['yes', 'no', 'modify']:
+            if user_input == 'yes':
+                state['user_approval'] = True
+            elif user_input == 'no':
+                state['user_approval'] = False
+            else:  # modify
+                print("\nModificando pull request...")
+                state['pr_data'].title = input("Nuevo título: ") or state['pr_data'].title
+                state['pr_data'].body = input("Nueva descripción: ") or state['pr_data'].body
+                state['user_approval'] = True
+            break
+        print("Por favor, responde con 'yes', 'no' o 'modify'")
+    
+    return state
+
+def create_pull_request(state: State):
+    """Crea el pull request si fue aprobado por el usuario."""
+    if not state.get('user_approval'):
+        print("\n❌ Pull request no aprobado por el usuario")
+        return state
+    
+    if not state.get('pr_data'):
+        print("\n❌ No hay datos de pull request para crear")
+        return state
+    
+    print("\n🚀 Creando pull request...")
+    try:
+        result = create_pull_request.invoke(state['pr_data'].model_dump())
+        print(f"✅ {result}")
+    except Exception as e:
+        print(f"❌ Error al crear el pull request: {str(e)}")
+    
+    return state
+
+def should_continue(state):
+    """Determina si continuar con el flujo basado en el estado."""
+    if not state.get('user_approval'):
+        return "end"
+    return "create_pr"
+
+@tool
+def modify_file(file_path: str, changes: str) -> str:
+    """
+    Modifica el contenido de un archivo en el repositorio.
+    Args:
+        file_path: Ruta del archivo a modificar
+        changes: Descripción de los cambios a realizar en formato JSON
+    Returns:
+        str: Resultado de la operación
+    """
+    try:
+        # Obtener el contenido actual del archivo
+        current_content = get_file_content.invoke(file_path)
+        
+        # Crear prompt para el LLM
+        prompt = f"""
+        Aquí está el contenido actual del archivo {file_path}:
+        ```
+        {current_content}
+        ```
+        
+        Y estos son los cambios que necesitas hacer:
+        {changes}
+        
+        Por favor, proporciona el nuevo contenido completo del archivo con los cambios aplicados.
+        Responde SOLO con el contenido del archivo, sin explicaciones adicionales.
+        """
+        
+        # Obtener el nuevo contenido del LLM
+        messages = [HumanMessage(content=prompt)]
+        response = model.invoke(messages)
+        new_content = response.content.strip()
+        
+        # Eliminar los marcadores de código si existen
+        if new_content.startswith("```"):
+            new_content = new_content.split("\n", 1)[1]
+        if new_content.endswith("```"):
+            new_content = new_content.rsplit("\n", 1)[0]
+        
+        return new_content
+    except Exception as e:
+        return f"Error al modificar el archivo: {str(e)}"
+
+def prepare_code_changes(state: State):
+    """Prepara los cambios de código basados en el análisis."""
+    print("\n💻 Preparando cambios de código...")
+    
+    if not state.get('analysis') or not state.get('files_analysis'):
+        print("❌ No hay análisis suficiente para proponer cambios")
+        return state
+    
+    # Crear prompt para generar los cambios
+    prompt = f"""
+    Basado en el siguiente análisis, genera los cambios necesarios para resolver el issue:
+    
+    Análisis del Issue:
+    {state['analysis'].model_dump_json(indent=2)}
+    
+    Archivos Relacionados:
+    {json.dumps(state['files_analysis'], indent=2)}
+    
+    Para cada archivo que necesite cambios, proporciona un JSON con la siguiente estructura:
+    {{
+        "archivo": "ruta/al/archivo",
+        "cambios": "Descripción detallada de los cambios necesarios",
+        "razon": "Explicación de por qué se necesitan estos cambios"
+    }}
+    """
+    
+    messages = [HumanMessage(content=prompt)]
+    response = model.invoke(messages)
+    
+    try:
+        content = response.content.strip()
+        json_start = content.find('{')
+        json_end = content.rfind('}') + 1
+        if json_start >= 0 and json_end > json_start:
+            content = content[json_start:json_end]
+        
+        changes_data = json.loads(content)
+        state['proposed_changes'] = {}
+        
+        # Aplicar cambios a cada archivo
+        for change in changes_data:
+            print(f"\n📝 Aplicando cambios a {change['archivo']}...")
+            print(f"Razón: {change['razon']}")
+            
+            new_content = modify_file.invoke(change['archivo'], change['cambios'])
+            state['proposed_changes'][change['archivo']] = new_content
+            
+            print("✅ Cambios aplicados correctamente")
+        
+        return state
+    except Exception as e:
+        print(f"\n⚠️ Error al preparar los cambios: {str(e)}")
+        return state
+
+def review_code_changes(state: State):
+    """Permite al usuario revisar los cambios propuestos."""
+    if not state.get('proposed_changes'):
+        print("❌ No hay cambios propuestos para revisar")
+        return state
+    
+    print("\n👥 Revisión de Cambios de Código")
+    print("==============================")
+    
+    for file_path, new_content in state['proposed_changes'].items():
+        print(f"\n📄 Archivo: {file_path}")
+        print("Cambios propuestos:")
+        print("------------------")
+        print(new_content)
+        
+        while True:
+            user_input = input("\n¿Aceptas estos cambios? (yes/no/modify): ").lower()
+            if user_input in ['yes', 'no', 'modify']:
+                if user_input == 'yes':
+                    continue
+                elif user_input == 'no':
+                    state['proposed_changes'].pop(file_path)
+                else:  # modify
+                    print("\nModificando cambios...")
+                    new_content = input("Ingresa el nuevo contenido del archivo:\n")
+                    state['proposed_changes'][file_path] = new_content
+                break
+            print("Por favor, responde con 'yes', 'no' o 'modify'")
+    
+    return state
+
+def analyze_issue(state: State):
+    """Analiza el issue y genera un análisis estructurado."""
+    print("\n🔍 Analizando issue...")
+    
+    # Crear prompt para el análisis
+    prompt = f"""
+    Analiza el siguiente issue de GitHub y proporciona una respuesta estructurada:
+    
+    Issue #{state['issue'].number}: {state['issue'].title}
+    Descripción: {state['issue'].body}
+    
+    Por favor, proporciona tu análisis en el siguiente formato JSON:
+    {{
+        "issue_number": {state['issue'].number},
+        "summary": "Resumen conciso del problema",
+        "impact": "Impacto potencial del problema",
+        "affected_areas": ["Lista de áreas afectadas"],
+        "recommendations": ["Lista de recomendaciones"],
+        "technical_details": {{
+            "created_at": "{state['issue'].created_at.isoformat()}",
+            "updated_at": "{state['issue'].updated_at.isoformat()}",
+            "state": "{state['issue'].state}"
+        }},
+        "solution": "Solución propuesta para el problema"
+    }}
+    """
+    
+    messages = [HumanMessage(content=prompt)]
+    response = model.invoke(messages)
+    
+    try:
+        content = response.content.strip()
+        json_start = content.find('{')
+        json_end = content.rfind('}') + 1
+        if json_start >= 0 and json_end > json_start:
+            content = content[json_start:json_end]
+        
+        state['analysis'] = IssueAnalysis(**json.loads(content))
+        print("\n✅ Análisis del issue completado")
+        return state
+    except Exception as e:
+        print(f"\n⚠️ Error al analizar el issue: {str(e)}")
+        return state
+
 def main():
     # Obtener issues de GitHub
     issues = get_github_issues()
@@ -346,43 +686,53 @@ def main():
     first_issue = issues[0]
     print(f"\n🔍 Analizando issue #{first_issue.number}...")
     
-    # Crear input inicial con el issue seleccionado
-    initial_input = {
-        "messages": [
-            HumanMessage(content=f"Por favor analiza este issue: {first_issue.model_dump()}")
-        ]
+    # Configurar el grafo
+    builder = StateGraph(State)
+    
+    # Agregar nodos
+    builder.add_node("analyze_issue", analyze_issue)
+    builder.add_node("analyze_files", analyze_files)
+    builder.add_node("prepare_code_changes", prepare_code_changes)
+    builder.add_node("review_code_changes", review_code_changes)
+    builder.add_node("prepare_pr", prepare_pull_request)
+    builder.add_node("human_review", human_review)
+    builder.add_node("create_pr", create_pull_request)
+    
+    # Definir flujo
+    builder.add_edge(START, "analyze_issue")
+    builder.add_edge("analyze_issue", "analyze_files")
+    builder.add_edge("analyze_files", "prepare_code_changes")
+    builder.add_edge("prepare_code_changes", "review_code_changes")
+    builder.add_edge("review_code_changes", "prepare_pr")
+    builder.add_edge("prepare_pr", "human_review")
+    builder.add_conditional_edges(
+        "human_review",
+        should_continue,
+        {
+            "create_pr": "create_pr",
+            "end": END
+        }
+    )
+    builder.add_edge("create_pr", END)
+    
+    # Configurar memoria y compilar
+    memory = MemorySaver()
+    graph = builder.compile(checkpointer=memory)
+    
+    # Ejecutar el grafo
+    initial_state = {
+        "issue": first_issue,
+        "analysis": None,
+        "pr_data": None,
+        "files_analysis": None,
+        "user_approval": None,
+        "proposed_changes": None
     }
+    
     thread = {"configurable": {"thread_id": f"issue_{first_issue.number}"}}
     
-    print("\n--- INICIO DEL AGENTE LANGGRAPH CON OLLAMA ---")
-    for event in app.stream(initial_input, thread, stream_mode="values"):
-        if isinstance(event, dict) and "messages" in event:
-            for message in event["messages"]:
-                if isinstance(message, AIMessage):
-                    try:
-                        # Intentar parsear la respuesta como JSON
-                        analysis = json.loads(message.content)
-                        print("\n📊 Análisis del Issue:")
-                        print("-------------------")
-                        print(f"📝 Resumen: {analysis.get('summary', 'No disponible')}")
-                        print(f"💥 Impacto: {analysis.get('impact', 'No disponible')}")
-                        print("\n🎯 Áreas Afectadas:")
-                        for area in analysis.get('affected_areas', []):
-                            print(f"  - {area}")
-                        print("\n💡 Recomendaciones:")
-                        for rec in analysis.get('recommendations', []):
-                            print(f"  - {rec}")
-                        if 'solution' in analysis:
-                            print(f"\n✨ Solución Propuesta:\n{analysis['solution']}")
-                        if 'technical_details' in analysis:
-                            print("\n🔧 Detalles Técnicos:")
-                            for key, value in analysis['technical_details'].items():
-                                print(f"  - {key}: {value}")
-                    except json.JSONDecodeError:
-                        # Si no es JSON, mostrar el mensaje tal cual
-                        print("\n📝 Respuesta del Agente:")
-                        print(message.content)
-    print("\n--- FIN DEL AGENTE ---")
+    for event in graph.stream(initial_state, thread, stream_mode="values"):
+        print(event)
 
 if __name__ == "__main__":
     main() 
