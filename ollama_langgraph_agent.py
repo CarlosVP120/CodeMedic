@@ -38,25 +38,53 @@ class PullRequestData(BaseModel):
     issue_number: int = Field(..., description="Número del issue relacionado")
 
 # Cargar variables de entorno
-load_dotenv()
+if "GITHUB_TOKEN" in os.environ:
+    print("\n⚠️  Limpiando GITHUB_TOKEN existente en variables de entorno...")
+    del os.environ["GITHUB_TOKEN"]
+
+# Cargar variables de entorno desde .env
+load_dotenv(override=True)
 
 # Configuración de GitHub
-GITHUB_REPOSITORY = "Elcasvi/Code-Fixer-LLM-Agent"
+GITHUB_REPOSITORY = "Elcasvi/Code-Fixer-LLM-Agent"  
 github_token = os.getenv("GITHUB_TOKEN")
 if not github_token:
     raise ValueError("GITHUB_TOKEN no está definido en las variables de entorno")
 
 # Inicializar cliente de GitHub
-github_client = Github(github_token)
+try:
+    print("\n🔍 Verificando conexión con GitHub...")
+    github_client = Github(github_token)
+    print("Token: ", github_token)
+    
+    # Verificar token y usuario
+    try:
+        user = github_client.get_user()
+        print(f"✓ Conectado como: {user.login}")
+    except Exception as user_error:
+        print(f"\n❌ Error al verificar el token: {str(user_error)}")
+        print("El token podría estar expirado o ser inválido")
+        raise
+    
+    print("\n✓ Conexión con GitHub establecida correctamente")
+    
+except Exception as e:
+    print(f"\n❌ Error general: {str(e)}")
+    raise ValueError(f"Error al conectar con GitHub: {str(e)}")
 
 def get_github_issues() -> List[GitHubIssue]:
     """Obtiene los issues abiertos del repositorio."""
     try:
+        print(f"\n🔍 Intentando acceder al repositorio: {GITHUB_REPOSITORY}")
         repo = github_client.get_repo(GITHUB_REPOSITORY)
+        print("✓ Repositorio encontrado")
+        
+        print("\n📋 Obteniendo issues abiertos...")
         issues = repo.get_issues(state='open')
         issues_list = []
         
         for issue in issues:
+            print(f"  - Issue #{issue.number}: {issue.title}")
             issues_list.append(GitHubIssue(
                 number=issue.number,
                 title=issue.title,
@@ -66,9 +94,19 @@ def get_github_issues() -> List[GitHubIssue]:
                 updated_at=issue.updated_at
             ))
         
+        if not issues_list:
+            print("⚠️ No se encontraron issues abiertos")
+        else:
+            print(f"✓ Se encontraron {len(issues_list)} issues abiertos")
+        
         return issues_list
     except Exception as e:
-        print(f"Error al obtener issues: {str(e)}")
+        print(f"\n❌ Error al obtener issues: {str(e)}")
+        print(f"Repositorio: {GITHUB_REPOSITORY}")
+        print(f"Token válido: {'Sí' if github_token else 'No'}")
+        print("\nDetalles del error:")
+        print(f"- Tipo de error: {type(e).__name__}")
+        print(f"- Mensaje: {str(e)}")
         return []
 
 def parse_llm_response(response: str) -> IssueAnalysis:
@@ -193,8 +231,43 @@ def create_pull_request(pr_data: dict) -> str:
     except Exception as e:
         return f"Error al crear el pull request: {str(e)}"
 
+# Tool para listar archivos en el repo (recursivo)
+@tool
+def list_repo_files(path: str = "") -> list:
+    """
+    Lista todos los archivos en el repositorio de GitHub, comenzando desde el path dado (vacío para raíz).
+    """
+    try:
+        repo = github_client.get_repo(GITHUB_REPOSITORY)
+        files = []
+
+        def _list_files_recursive(path):
+            contents = repo.get_contents(path)
+            for content_file in contents:
+                if content_file.type == "dir":
+                    _list_files_recursive(content_file.path)
+                else:
+                    files.append(content_file.path)
+        _list_files_recursive(path)
+        return files
+    except Exception as e:
+        return [f"Error al listar archivos: {str(e)}"]
+
+# Tool para extraer el contenido de un archivo
+@tool
+def get_file_content(file_path: str) -> str:
+    """
+    Extrae el contenido de un archivo del repositorio de GitHub.
+    """
+    try:
+        repo = github_client.get_repo(GITHUB_REPOSITORY)
+        content = repo.get_contents(file_path)
+        return content.decoded_content.decode()
+    except Exception as e:
+        return f"Error al obtener el contenido del archivo: {str(e)}"
+
 # Configuración del agente
-tools = [analyze_issue, create_pull_request]
+tools = [analyze_issue, create_pull_request, list_repo_files, get_file_content]
 tool_node = ToolNode(tools)
 model = ChatOllama(model="qwen3:8b")
 
