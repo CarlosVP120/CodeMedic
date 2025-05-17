@@ -642,7 +642,7 @@ def create_pull_request(state: State):
         pull_request = repo.create_pull(
             title=state['pr_data'].title,
             body=state['pr_data'].body,
-            head=f"{state['pr_data'].head_branch}/issue-{state['pr_data'].issue_number}",
+            head="main",
             base=state['pr_data'].base_branch
         )
         
