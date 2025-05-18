@@ -16,7 +16,7 @@ class CodeFixerAgent:
 from typing import Dict, Any, List, TypedDict, Annotated, Sequence
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.tools import tool
-from langchain_community.llms import Ollama
+from langchain_community.chat_models import ChatOllama
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from github import Github
@@ -89,9 +89,6 @@ class CodeFixerAgent:
             print(f"\n❌ Error general: {str(e)}")
             raise ValueError(f"Error al conectar con GitHub: {str(e)}")
         
-        # Inicializar LLM
-        self.llm = Ollama(model="qwen3:8b")
-        
         # Inicializar herramientas
         self.tools = [
             self.analyze_issue,
@@ -102,6 +99,9 @@ class CodeFixerAgent:
             self.delete_file
         ]
         
+        # Inicializar LLM con ChatOllama
+        self.llm = ChatOllama(model="qwen3:8b")
+        
         # Inicializar memoria
         self.memory = MemorySaver()
         
@@ -111,49 +111,70 @@ class CodeFixerAgent:
         # Crear el ejecutor del agente
         self.agent_executor = self.workflow.compile()
 
-    def list_issues(self) -> str:
+    def list_issues(self) -> List[Dict[str, Any]]:
         """Lista todos los issues disponibles en el repositorio."""
         try:
             repo = self.github_client.get_repo(GITHUB_REPOSITORY)            
             issues = repo.get_issues(state='open')
             issues_list = []
+            
             for issue in issues:
-                issues_list.append(f"#{issue.number}: {issue.title}")
+                issues_list.append({
+                    "number": issue.number,
+                    "title": issue.title,
+                    "body": issue.body or "",
+                    "state": issue.state,
+                    "created_at": issue.created_at.isoformat(),
+                    "updated_at": issue.updated_at.isoformat()
+                })
             
             if not issues_list:
-                return "No hay issues abiertos en el repositorio."
+                print("No hay issues abiertos en el repositorio.")
+                return []
             
-            return "\n".join(issues_list)
+            return issues_list
         except Exception as e:
             error_msg = f"Error al acceder al repositorio: {str(e)}"
             print(f"\n❌ {error_msg}")
-            print("\nPosibles soluciones:")
-            print("1. Verifica que el nombre del repositorio sea correcto")
-            print("2. Verifica que el token tenga permisos de lectura en el repositorio")
-            print("3. Verifica que el repositorio exista y sea accesible")
+            return []
+
+    def _analyze_issue(self, issue_data: Dict[str, Any]) -> str:
+        """Lógica interna para analizar un issue de GitHub y proporcionar un análisis detallado."""
+        try:
+            print(f"\n🔍 Analizando issue...")
+            print(f"Analizando issue: {issue_data}")
+            
+            # Crear prompt para el análisis
+            analysis_prompt = f"""
+            Analiza el siguiente issue de GitHub:
+            
+            Título: {issue_data['title']}
+            Descripción: {issue_data['body']}
+            
+            Proporciona un análisis detallado que incluya:
+            1. Resumen del problema
+            2. Impacto potencial
+            3. Áreas afectadas
+            4. Recomendaciones iniciales
+            """
+            
+            # Obtener análisis del LLM usando el formato de mensajes
+            messages = [HumanMessage(content=analysis_prompt)]
+            response = self.llm.invoke(messages)
+            analysis = response.content
+            
+            print(f"✓ Análisis completado para issue #{issue_data['number']}")
+            
+            return analysis
+        except Exception as e:
+            error_msg = f"Error al analizar el issue: {str(e)}"
+            print(f"\n❌ {error_msg}")
             return error_msg
 
-    @tool
-    def analyze_issue(self, issue_number: int) -> str:
-        """Analiza un issue de GitHub y retorna información relevante.
-        
-        Args:
-            issue_number: El número del issue a analizar
-            
-        Returns:
-            str: Información detallada del issue
-        """
-        try:
-            print(f"\n🔍 Analizando issue #{issue_number}")
-            repo = self.github_client.get_repo(GITHUB_REPOSITORY)
-            issue = repo.get_issue(issue_number)
-            print(f"✓ Issue encontrado: #{issue.number} - {issue.title}")
-            print(f"Descripción: {issue.body}")
-            print(f"Labels: {[label.name for label in issue.labels]}")
-            return f"Issue Title: {issue.title}\nDescription: {issue.body}\nLabels: {[label.name for label in issue.labels]}"
-        except Exception as e:
-            print(f"❌ Error analizando issue: {str(e)}")
-            return f"Error analyzing issue: {str(e)}"
+    @tool("analyze_issue")
+    def analyze_issue(self, issue_data: Dict[str, Any]) -> str:
+        """Herramienta para LangChain: llama a la lógica interna de análisis."""
+        return self._analyze_issue(issue_data)
 
     @tool
     def create_pull_request(self, pr_data: Dict[str, Any]) -> str:
@@ -229,101 +250,65 @@ class CodeFixerAgent:
             return f"Error deleting file: {str(e)}"
 
     def _create_workflow(self) -> StateGraph:
-        """Crea el grafo de flujo de trabajo del agente."""
-        # Crear el grafo
+        """Crea el grafo de flujo del agente."""
         workflow = StateGraph(AgentState)
-        
-        # Definir nodos del grafo
+
         def analyze_step(state: AgentState) -> AgentState:
             """Paso de análisis del issue."""
             try:
-                messages = state["messages"]
-                issue_data = state["issue_data"]
-                print(f"\n🔍 Analizando issue: {issue_data}")
-                
-                # Obtener análisis del issue usando el número del issue
-                analysis_result = self.analyze_issue.invoke(issue_data["number"])
-                print(f"✓ Análisis obtenido: {analysis_result}")
-                
+                print("\n🔍 Analizando issue...")
+                issue_data = state.get("issue_data", {})
+                print(f"Analizando issue: {issue_data}")
+
+                # Llamar a la lógica interna directamente
+                analysis_result = self._analyze_issue(issue_data)
+
                 # Actualizar estado
                 new_state = dict(state)
-                new_state["current_step"] = "analysis"
+                new_state["current_step"] = "analyze"
                 new_state["analysis"] = analysis_result
-                new_state["messages"] = messages + [AIMessage(content=f"Análisis del issue:\n{analysis_result}")]
+                new_state["messages"] = state.get("messages", []) + [AIMessage(content=f"Análisis del issue:\n{analysis_result}")]
                 new_state["steps"] = state.get("steps", []) + ["Análisis completado"]
                 return new_state
             except Exception as e:
                 print(f"❌ Error en analyze_step: {str(e)}")
                 raise
-        
+
         def solution_step(state: AgentState) -> AgentState:
             """Paso de generación de solución."""
             try:
-                messages = state["messages"]
                 print("\n💡 Generando solución...")
-                
-                # Generar solución usando el LLM
+                messages = state.get("messages", [])
+
+                # Crear prompt para la solución
                 solution_prompt = f"""
                 Basado en el siguiente análisis:
                 {state['analysis']}
-                
-                Genera una solución detallada para el issue.
+
+                Proporciona una solución técnica detallada y pasos específicos que se deben seguir para resolver el problema descrito en el issue.
                 """
-                solution = self.llm.invoke(solution_prompt)
-                print(f"✓ Solución generada: {solution}")
-                
-                # Actualizar estado
+                # Usar el modelo LLM para generar la solución
+                solution_result = self.llm.invoke(solution_prompt)
+
                 new_state = dict(state)
                 new_state["current_step"] = "solution"
-                new_state["solution"] = solution
-                new_state["messages"] = messages + [AIMessage(content=f"Solución propuesta:\n{solution}")]
+                new_state["solution"] = solution_result
+                new_state["messages"] = messages + [AIMessage(content=f"Solución propuesta:\n{solution_result}")]
                 new_state["steps"] = state.get("steps", []) + ["Solución generada"]
                 return new_state
             except Exception as e:
                 print(f"❌ Error en solution_step: {str(e)}")
                 raise
-        
-        def create_pr_step(state: AgentState) -> AgentState:
-            """Paso de creación de pull request."""
-            try:
-                messages = state["messages"]
-                issue_data = state["issue_data"]
-                print("\n📝 Creando pull request...")
-                
-                # Preparar datos del PR
-                pr_data = {
-                    "title": f"Fix for issue #{issue_data['number']}",
-                    "body": state["solution"],
-                    "issue_number": issue_data["number"]
-                }
-                
-                # Crear PR
-                pr_result = self.create_pull_request(pr_data)
-                print(f"✓ Pull request creado: {pr_result}")
-                
-                # Actualizar estado
-                new_state = dict(state)
-                new_state["current_step"] = "pr_created"
-                new_state["messages"] = messages + [AIMessage(content=f"Pull request creado:\n{pr_result}")]
-                new_state["steps"] = state.get("steps", []) + ["Pull request creado"]
-                return new_state
-            except Exception as e:
-                print(f"❌ Error en create_pr_step: {str(e)}")
-                raise
-        
-        # Agregar nodos al grafo
-        workflow.add_node("analyze", analyze_step)
-        workflow.add_node("generate_solution", solution_step)
-        workflow.add_node("create_pr", create_pr_step)
-        
-        # Definir el flujo
-        workflow.add_edge("analyze", "generate_solution")
-        workflow.add_edge("generate_solution", "create_pr")
-        workflow.add_edge("create_pr", END)
-        
-        # Establecer el nodo inicial
-        workflow.set_entry_point("analyze")
-        
+
+        # Añadir nodos al grafo
+        workflow.add_node("analizar_issue", analyze_step)
+        workflow.add_node("generar_solucion", solution_step)
+
+        # Definir flujo entre nodos
+        workflow.set_entry_point("analizar_issue")
+        workflow.add_edge("analizar_issue", "generar_solucion")
+        workflow.add_edge("generar_solucion", END)
+
         return workflow
 
     def fix_issue(self, issue_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -331,22 +316,44 @@ class CodeFixerAgent:
         Método principal para resolver un issue.
         
         Args:
-            issue_data: Diccionario con los datos del issue
+            issue_data: Diccionario con los datos del issue (number, title, body, etc.).
             
         Returns:
             Diccionario con los resultados del proceso
         """
         try:
+            print("\n🔍 Diagnóstico de fix_issue:")
+            print(f"Tipo de issue_data: {type(issue_data)}")
+            print(f"Claves disponibles: {list(issue_data.keys()) if isinstance(issue_data, dict) else 'No es un diccionario'}")
+            print(f"Datos recibidos: {json.dumps(issue_data, indent=2) if isinstance(issue_data, dict) else issue_data}")
+            
+            # Verificar que issue_data sea un diccionario
+            if not isinstance(issue_data, dict):
+                raise ValueError(f"issue_data debe ser un diccionario, se recibió: {type(issue_data)}")
+            
+            # Verificar campos requeridos
+            required_fields = ['number', 'title', 'body']
+            missing_fields = [field for field in required_fields if field not in issue_data]
+            if missing_fields:
+                print(f"\n⚠️ Campos actuales en issue_data: {list(issue_data.keys())}")
+                print(f"⚠️ Valores actuales:")
+                for key, value in issue_data.items():
+                    print(f"  - {key}: {value}")
+                raise ValueError(f"Faltan campos requeridos en issue_data: {missing_fields}")
+            
             # Estado inicial
             initial_state = {
                 "messages": [HumanMessage(content=f"Voy a analizar y resolver el issue #{issue_data['number']}")],
-                "issue_data": issue_data,
+                "issue_data": issue_data,  # Pasar el diccionario completo
                 "current_step": "start",
                 "analysis": "",
                 "solution": "",
                 "steps": [],
                 "recommendations": []
             }
+            
+            print("\n✓ Estado inicial creado correctamente")
+            print(f"Thread ID: issue_{issue_data['number']}")
             
             # Configuración para el thread_id
             config = {"configurable": {"thread_id": f"issue_{issue_data['number']}"}}
@@ -355,7 +362,7 @@ class CodeFixerAgent:
             final_state = None
             for step in self.agent_executor.stream(initial_state, config):
                 final_state = step
-                print(f"Paso actual: {step.get('current_step', 'unknown')}")
+                print(f"\nPaso actual: {step.get('current_step', 'unknown')}")
                 if 'analysis' in step:
                     print(f"Análisis: {step['analysis']}")
                 if 'solution' in step:
@@ -374,8 +381,12 @@ class CodeFixerAgent:
             }
             
         except Exception as e:
-            print(f"Error en fix_issue: {str(e)}")
-            return {"error": str(e)}
+            error_msg = f"Error en fix_issue: {str(e)}"
+            print(f"\n❌ {error_msg}")
+            import traceback
+            print("\nDetalles del error:")
+            print(traceback.format_exc())
+            return {"error": error_msg}
 
 
 # Datos de prueba
@@ -384,3 +395,24 @@ test_issue = {
     "title": "Test Issue",
     "body": "This is a test issue for the CodeFixerAgent"
 }
+
+if __name__ == "__main__":
+    agent = CodeFixerAgent()
+    
+    issue_number = 1  # Cambia esto al número real del issue que quieres analizar
+
+    initial_state: AgentState = {
+        "messages": [HumanMessage(content=f"Por favor, analiza el issue #{issue_number}")],
+        "issue_data": {"number": issue_number},
+        "current_step": "",
+        "analysis": "",
+        "solution": "",
+        "steps": [],
+        "recommendations": []
+    }
+
+    final_state = agent.agent_executor.invoke(initial_state)
+    print("\n✅ Ejecución completada")
+    print("\n--- Mensajes finales ---")
+    for msg in final_state["messages"]:
+        print(f"\n[{msg.type}] {msg.content}")
