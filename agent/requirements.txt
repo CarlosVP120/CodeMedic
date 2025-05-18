@@ -1,5 +1,7 @@
 langchain-core
 langchain-community
+langchain-huggingface
+huggingface_hub[hf_xet]
 langgraph
 python-dotenv
 PyGithub
