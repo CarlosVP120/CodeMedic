@@ -4,6 +4,9 @@ from typing import Dict, Any, List, Optional, TypedDict
 from github import Github
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.prebuilt import create_react_agent
+
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import StateGraph, END
 from langchain_core.tools import Tool
@@ -88,6 +91,7 @@ def main():
         )
     ]
     tool_map = {tool.name: tool for tool in tools}
+    #tools=[get_repository_file_names,get_repository_file_content,create_local_file]
 
     # ---- LLM Setup ----
     #model = ChatOllama(model="qwen3:8b")
@@ -96,78 +100,105 @@ def main():
         task="text-generation",
         max_new_tokens=512,
         do_sample=False,
-        repetition_penalty=1.03,
+        repetition_penalty=1.03
     )
     model = ChatHuggingFace(llm=llm)
 
-    # ---- LLM Node ----
-    async def call_llm(state: AgentState) -> AgentState:
-        messages = state["messages"]
-        if state.get("tool_result"):
-            messages = messages + [AIMessage(content=state["tool_result"])]
-        response = await model.ainvoke(messages)
-        return {"messages": [response], "tool_result": None}
+    # # ---- LLM Node ----
+    # async def call_llm(state: AgentState) -> AgentState:
+    #     messages = state["messages"]
+    #     if state.get("tool_result"):
+    #         messages = messages + [AIMessage(content=state["tool_result"])]
+    #     response = await model.ainvoke(messages)
+    #     return {"messages": [response], "tool_result": None}
+    #
+    # # ---- Tool Execution Node ----
+    # async def run_tool(state: AgentState) -> AgentState:
+    #     ai_message = state["messages"][-1]
+    #     content = ai_message.content
+    #     try:
+    #         tool_name = next((name for name in tool_map if name in content), None)
+    #         if not tool_name:
+    #             return {"messages": [], "tool_result": "Tool not found."}
+    #         json_start = content.find("{")
+    #         json_end = content.rfind("}") + 1
+    #         args = json.loads(content[json_start:json_end])
+    #         result = tool_map[tool_name].invoke(args)
+    #         return {"messages": [], "tool_result": str(result)}
+    #     except Exception as e:
+    #         return {"messages": [], "tool_result": f"Tool execution error: {str(e)}"}
+    #
+    # # ---- Router ----
+    # def tool_router(state: AgentState) -> str:
+    #     ai_message = state["messages"][-1].content.lower()
+    #     for name in tool_map:
+    #         if name in ai_message:
+    #             return "run_tool"
+    #     if "end" in ai_message or "finished" in ai_message:
+    #         return END
+    #     return "run_tool"
+    #
+    # # ---- Graph Construction ----
+    # workflow = StateGraph(AgentState)
+    # workflow.add_node("call_llm", call_llm)
+    # workflow.add_node("run_tool", run_tool)
+    #
+    # workflow.set_entry_point("call_llm")
+    # workflow.add_conditional_edges("call_llm", tool_router, {
+    #     "run_tool": "run_tool",
+    #     END: END
+    # })
+    # workflow.add_edge("run_tool", "call_llm")
+    #
+    # graph = workflow.compile()
+    #
+    # async def simulate_interaction():
+    #     issue = get_github_issue(
+    #         get_github_issues(
+    #             github_repository_data=GithubRepositoryData(client=github_client, repository=GITHUB_REPOSITORY)
+    #         ),
+    #         2
+    #     )
+    #     input_message = {
+    #         "messages": [HumanMessage(content=f"Fix the following issue: {issue.__str__()}")],
+    #         "tool_result": None
+    #     }
+    #
+    #     async for output, metadata in graph.astream(input_message, stream_mode=["messages", "updates"]):
+    #         if isinstance(metadata, dict) and 'call_llm' in metadata:
+    #             ai_message = metadata['call_llm']['messages'][0]
+    #             if ai_message.content:
+    #                 print(ai_message.content, end="|", flush=True)
+    #
+    # # Run the simulation
+    # asyncio.run(simulate_interaction())
 
-    # ---- Tool Execution Node ----
-    async def run_tool(state: AgentState) -> AgentState:
-        ai_message = state["messages"][-1]
-        content = ai_message.content
-        try:
-            tool_name = next((name for name in tool_map if name in content), None)
-            if not tool_name:
-                return {"messages": [], "tool_result": "Tool not found."}
-            json_start = content.find("{")
-            json_end = content.rfind("}") + 1
-            args = json.loads(content[json_start:json_end])
-            result = tool_map[tool_name].invoke(args)
-            return {"messages": [], "tool_result": str(result)}
-        except Exception as e:
-            return {"messages": [], "tool_result": f"Tool execution error: {str(e)}"}
+    checkpointer = MemorySaver()
+    graph = create_react_agent(
+        model=model,
+        tools=tools,
+        checkpointer=checkpointer
+    )
 
-    # ---- Router ----
-    def tool_router(state: AgentState) -> str:
-        ai_message = state["messages"][-1].content.lower()
-        for name in tool_map:
-            if name in ai_message:
-                return "run_tool"
-        if "end" in ai_message or "finished" in ai_message:
-            return END
-        return "run_tool"
+    issue = get_github_issue(
+        get_github_issues(
+            GithubRepositoryData(client=github_client, repository=GITHUB_REPOSITORY)
+        ),
+        issue_number=2
+    )
 
-    # ---- Graph Construction ----
-    workflow = StateGraph(AgentState)
-    workflow.add_node("call_llm", call_llm)
-    workflow.add_node("run_tool", run_tool)
+    initial_messages = [
+        ("system", "You are an AI agent that analyzes and fixes GitHub code issues."),
+        ("user", f"Analyze and fix this issue: {issue.__str__()}")
+    ]
 
-    workflow.set_entry_point("call_llm")
-    workflow.add_conditional_edges("call_llm", tool_router, {
-        "run_tool": "run_tool",
-        END: END
-    })
-    workflow.add_edge("run_tool", "call_llm")
+    inputs = {"messages": initial_messages}
+    config = {"configurable": {"thread_id": "thread-3"}}
 
-    graph = workflow.compile()
+    result = graph.invoke(inputs, config=config)
 
-    async def simulate_interaction():
-        issue = get_github_issue(
-            get_github_issues(
-                github_repository_data=GithubRepositoryData(client=github_client, repository=GITHUB_REPOSITORY)
-            ),
-            2
-        )
-        input_message = {
-            "messages": [HumanMessage(content=f"Fix the following issue: {issue.__str__()}")],
-            "tool_result": None
-        }
-
-        async for output, metadata in graph.astream(input_message, stream_mode=["messages", "updates"]):
-            if isinstance(metadata, dict) and 'call_llm' in metadata:
-                ai_message = metadata['call_llm']['messages'][0]
-                if ai_message.content:
-                    print(ai_message.content, end="|", flush=True)
-
-    # Run the simulation
-    asyncio.run(simulate_interaction())
+    for message in result["messages"]:
+        message.pretty_print()
 
 if __name__ == "__main__":
     main()
