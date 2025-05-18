@@ -12,6 +12,8 @@ from langchain_core.messages import BaseMessage
 import json
 from tools.tools import get_repository_file_names, create_local_file, get_repository_file_content, get_github_issue,get_github_issues
 import asyncio
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+
 
 
 class PullRequestData(BaseModel):
@@ -65,6 +67,7 @@ def main():
 
 
 
+
     # Configuración del agente
     # Define a simple state type
     tools = [
@@ -87,7 +90,15 @@ def main():
     tool_map = {tool.name: tool for tool in tools}
 
     # ---- LLM Setup ----
-    model = ChatOllama(model="qwen3:8b")
+    #model = ChatOllama(model="qwen3:8b")
+    llm = HuggingFaceEndpoint(
+        model="Qwen/Qwen3-4B",
+        task="text-generation",
+        max_new_tokens=512,
+        do_sample=False,
+        repetition_penalty=1.03,
+    )
+    model = ChatHuggingFace(llm=llm)
 
     # ---- LLM Node ----
     async def call_llm(state: AgentState) -> AgentState:
