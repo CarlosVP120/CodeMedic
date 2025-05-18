@@ -1,6 +1,6 @@
 import os
 from langchain_community.chat_models import ChatOllama
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TypedDict
 from github import Github
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -22,6 +22,9 @@ class PullRequestData(BaseModel):
     issue_number: int = Field(..., description="Número del issue relacionado")
 
 
+class AgentState(TypedDict):
+    messages: List[BaseMessage]
+    tool_result: Optional[str]
 
 
 def main():
@@ -83,44 +86,36 @@ def main():
     ]
     tool_map = {tool.name: tool for tool in tools}
 
-    # ---- State Definition ----
-    class AgentState(BaseModel):
-        messages: List[BaseMessage]
-        tool_result: Optional[str] = None
-
     # ---- LLM Setup ----
     model = ChatOllama(model="qwen3:8b")
 
     # ---- LLM Node ----
-    async def call_llm(state: AgentState) -> Dict[str, Any]:
-        messages = state.messages
-        if state.tool_result:
-            messages.append(AIMessage(content=state.tool_result))
+    async def call_llm(state: AgentState) -> AgentState:
+        messages = state["messages"]
+        if state.get("tool_result"):
+            messages = messages + [AIMessage(content=state["tool_result"])]
         response = await model.ainvoke(messages)
         return {"messages": [response], "tool_result": None}
 
     # ---- Tool Execution Node ----
-    async def run_tool(state: AgentState) -> Dict[str, Any]:
-        ai_message = state.messages[-1]
+    async def run_tool(state: AgentState) -> AgentState:
+        ai_message = state["messages"][-1]
         content = ai_message.content
-
         try:
             tool_name = next((name for name in tool_map if name in content), None)
             if not tool_name:
-                return {"tool_result": "Tool not found.", "messages": []}
-
+                return {"messages": [], "tool_result": "Tool not found."}
             json_start = content.find("{")
             json_end = content.rfind("}") + 1
             args = json.loads(content[json_start:json_end])
             result = tool_map[tool_name].invoke(args)
-
-            return {"tool_result": str(result), "messages": []}
+            return {"messages": [], "tool_result": str(result)}
         except Exception as e:
-            return {"tool_result": f"Tool execution error: {str(e)}", "messages": []}
+            return {"messages": [], "tool_result": f"Tool execution error: {str(e)}"}
 
     # ---- Router ----
     def tool_router(state: AgentState) -> str:
-        ai_message = state.messages[-1].content.lower()
+        ai_message = state["messages"][-1].content.lower()
         for name in tool_map:
             if name in ai_message:
                 return "run_tool"
@@ -142,8 +137,6 @@ def main():
 
     graph = workflow.compile()
 
-    #input_message = {"messages": [HumanMessage(content=f"Fix the following issue: {get_github_issue(get_github_issues(github_repository_data=GithubRepositoryData(client=github_client,repository=GITHUB_REPOSITORY)),2).__str__()}")]}
-
     async def simulate_interaction():
         issue = get_github_issue(
             get_github_issues(
@@ -152,7 +145,8 @@ def main():
             2
         )
         input_message = {
-            "messages": [HumanMessage(content=f"Fix the following issue: {issue.__str__()}")]
+            "messages": [HumanMessage(content=f"Fix the following issue: {issue.__str__()}")],
+            "tool_result": None
         }
 
         async for output, metadata in graph.astream(input_message, stream_mode=["messages", "updates"]):
@@ -166,6 +160,12 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
 
 
 
