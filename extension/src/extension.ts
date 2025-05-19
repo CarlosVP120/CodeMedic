@@ -3,7 +3,6 @@
 import * as vscode from "vscode";
 import { GitHubService } from "./github/githubService";
 import { IssueProvider } from "./github/issueProvider";
-import { SolutionService } from "./solutions/solutionService";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -14,7 +13,6 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Initialize services
   const githubService = new GitHubService(context);
-  const solutionService = new SolutionService();
 
   // Create the issue tree view
   const issueProvider = new IssueProvider(githubService);
@@ -39,39 +37,10 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Registro de evento para abrir archivos desde WebView
-  context.subscriptions.push(
-    vscode.window.registerWebviewPanelSerializer("issueSolution", {
-      async deserializeWebviewPanel(
-        webviewPanel: vscode.WebviewPanel,
-        state: any
-      ) {
-        // Restaurar el estado del panel si es necesario
-        webviewPanel.webview.html = state?.html || "";
-
-        // No es necesario recrear el manejo de mensajes aquí, ya que se maneja en SolutionService
-      },
-    })
-  );
-
-  // Register webview serializer for code fix panel
-  context.subscriptions.push(
-    vscode.window.registerWebviewPanelSerializer("codeFixPanel", {
-      async deserializeWebviewPanel(
-        webviewPanel: vscode.WebviewPanel,
-        state: any
-      ) {
-        // Just restore the HTML content - actual handling is managed by the CodeFixPanel class
-        webviewPanel.webview.html = state?.html || "";
-      },
-    })
-  );
-
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "codemedic.showSolution",
+      "codemedic.showIssuePanel",
       async (issueItem) => {
-        // If called from command palette without context
         if (!issueItem) {
           const selectedItem = treeView.selection[0];
           if (!selectedItem) {
@@ -82,37 +51,8 @@ export function activate(context: vscode.ExtensionContext) {
           }
           issueItem = selectedItem;
         }
-
-        // Only process actual issues (not placeholder items)
         if (issueItem.contextValue === "issue") {
-          // Mostrar la solución - el manejo de mensajes ya está configurado dentro de showSolution
-          await solutionService.showSolution(issueItem.issue);
-        } else {
-          vscode.window.showErrorMessage("Please select a valid GitHub issue.");
-        }
-      }
-    )
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "codemedic.solveIssue",
-      async (issueItem) => {
-        // If called from command palette without context
-        if (!issueItem) {
-          const selectedItem = treeView.selection[0];
-          if (!selectedItem) {
-            vscode.window.showErrorMessage(
-              "No issue selected. Please select an issue first."
-            );
-            return;
-          }
-          issueItem = selectedItem;
-        }
-
-        // Only process actual issues (not placeholder items)
-        if (issueItem.contextValue === "issue") {
-          await solutionService.solveIssue(issueItem.issue);
+          showIssuePanel(issueItem.issue);
         } else {
           vscode.window.showErrorMessage("Please select a valid GitHub issue.");
         }
@@ -141,6 +81,58 @@ export function activate(context: vscode.ExtensionContext) {
         });
     }
   });
+}
+
+function showIssuePanel(issue: any) {
+  const panel = vscode.window.createWebviewPanel(
+    "issuePanel",
+    `Issue #${issue.number}: ${issue.title}`,
+    vscode.ViewColumn.Beside,
+    { enableScripts: false }
+  );
+  panel.webview.html = getIssueHtml(issue);
+}
+
+function getIssueHtml(issue: any): string {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Issue #${issue.number}</title>
+      <style>
+        body { font-family: sans-serif; padding: 2rem; color: #222; background: #fff; }
+        .header { margin-bottom: 1rem; }
+        .number { color: #888; }
+        .labels { margin: 0.5rem 0; }
+        .label { display: inline-block; background: #eee; color: #333; border-radius: 3px; padding: 2px 8px; margin-right: 4px; font-size: 0.9em; }
+        .meta { color: #666; font-size: 0.95em; margin-bottom: 1rem; }
+        .body { white-space: pre-wrap; margin-top: 1.5rem; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h2>Issue #${issue.number}: ${issue.title}</h2>
+        <div class="meta">
+          Opened by <b>${issue.user?.login || "?"}</b> on ${new Date(
+    issue.created_at
+  ).toLocaleString()}
+        </div>
+        <div class="labels">
+          ${(issue.labels || [])
+            .map((l: any) => `<span class="label">${l.name}</span>`)
+            .join(" ")}
+        </div>
+      </div>
+      <div class="body">${
+        issue.body
+          ? issue.body.replace(/</g, "&lt;")
+          : "<i>No description provided.</i>"
+      }</div>
+    </body>
+    </html>
+  `;
 }
 
 // This method is called when your extension is deactivated

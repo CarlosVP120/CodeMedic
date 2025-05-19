@@ -23,14 +23,9 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "codemedic.solveIssue",
-        "title": "Solve Issue",
-        "icon": "$(rocket)"
-      },
-      {
-        "command": "codemedic.showSolution",
-        "title": "Show How to Solve",
-        "icon": "$(lightbulb)"
+        "command": "codemedic.showIssuePanel",
+        "title": "Show Issue Details",
+        "icon": "$(eye)"
       },
       {
         "command": "codemedic.authenticate",
@@ -74,13 +69,8 @@
       ],
       "view/item/context": [
         {
-          "command": "codemedic.solveIssue",
-          "when": "view == codemedic-issues",
-          "group": "inline"
-        },
-        {
-          "command": "codemedic.showSolution",
-          "when": "view == codemedic-issues",
+          "command": "codemedic.showIssuePanel",
+          "when": "view == codemedic-issues && viewItem == issue",
           "group": "inline"
         }
       ]
