@@ -3,6 +3,7 @@
 import * as vscode from "vscode";
 import { GitHubService } from "./github/githubService";
 import { IssueProvider } from "./github/issueProvider";
+import axios from 'axios';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -52,7 +53,32 @@ export function activate(context: vscode.ExtensionContext) {
           issueItem = selectedItem;
         }
         if (issueItem.contextValue === "issue") {
-          showIssuePanel(issueItem.issue);
+          showIssuePanel(issueItem.issue, context);
+        } else {
+          vscode.window.showErrorMessage("Please select a valid GitHub issue.");
+        }
+      }
+    )
+  );
+
+  // New command to fix an issue using the agent
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "codemedic.fixIssue",
+      async (issueItem) => {
+        if (!issueItem) {
+          const selectedItem = treeView.selection[0];
+          if (!selectedItem) {
+            vscode.window.showErrorMessage(
+              "No issue selected. Please select an issue first."
+            );
+            return;
+          }
+          issueItem = selectedItem;
+        }
+        
+        if (issueItem.contextValue === "issue") {
+          await fixIssue(issueItem.issue);
         } else {
           vscode.window.showErrorMessage("Please select a valid GitHub issue.");
         }
@@ -83,14 +109,74 @@ export function activate(context: vscode.ExtensionContext) {
   });
 }
 
-function showIssuePanel(issue: any) {
+function showIssuePanel(issue: any, context: vscode.ExtensionContext) {
   const panel = vscode.window.createWebviewPanel(
     "issuePanel",
     `Issue #${issue.number}: ${issue.title}`,
     vscode.ViewColumn.Beside,
-    { enableScripts: false }
+    { enableScripts: true }
   );
+  
+  // Add fix button to the panel
   panel.webview.html = getIssueHtml(issue);
+  
+  // Handle messages from the webview
+  panel.webview.onDidReceiveMessage(
+    async (message) => {
+      if (message.command === "fixIssue") {
+        await fixIssue(issue);
+      }
+    },
+    undefined,
+    context.subscriptions
+  );
+}
+
+// New function to send issue to the API
+async function fixIssue(issue: any): Promise<void> {
+  try {
+    vscode.window.showInformationMessage(`Starting to fix issue #${issue.number}...`);
+    
+    // Prepare issue data for the API
+    const issueData = {
+      number: issue.number,
+      title: issue.title,
+      body: issue.body || "",
+      state: issue.state,
+      created_at: issue.created_at,
+      updated_at: issue.updated_at
+    };
+    
+    // Configure progress notification
+    await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: `Fixing issue #${issue.number}`,
+      cancellable: false
+    }, async (progress) => {
+      progress.report({ message: "Sending issue to CodeMedic agent..." });
+      
+      try {
+        // Send the issue to the API
+        const response = await axios.post("http://localhost:8000/api/fix", issueData);
+        
+        progress.report({ message: "Issue received by agent", increment: 50 });
+        
+        // Show success message
+        vscode.window.showInformationMessage(
+          `Issue #${issue.number} is being processed by the agent. Check the server logs for details.`
+        );
+        
+        // Return response data for handling
+        return response.data;
+      } catch (error) {
+        vscode.window.showErrorMessage(`Failed to connect to CodeMedic server: ${error}`);
+        throw error;
+      }
+    });
+    
+  } catch (error) {
+    vscode.window.showErrorMessage(`Error fixing issue: ${error}`);
+  }
 }
 
 function getIssueHtml(issue: any): string {
@@ -118,6 +204,22 @@ function getIssueHtml(issue: any): string {
         .meta { color: #666; font-size: 0.95em; margin-bottom: 1rem; }
         .body { white-space: pre-wrap; margin-top: 1.5rem; }
         .code-block { background: #23272e; color: #e6e6e6; border-radius: 6px; padding: 1rem; margin-top: 2rem; font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace; font-size: 1em; overflow-x: auto; box-shadow: 0 2px 8px #0001; }
+        .fix-button { 
+          background-color: #2ea44f;
+          color: white;
+          padding: 8px 16px;
+          border: none;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          margin-top: 1rem;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .fix-button:hover {
+          background-color: #2c974b;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
       </style>
     </head>
     <body>
@@ -140,6 +242,18 @@ function getIssueHtml(issue: any): string {
           : "<i>No description provided.</i>"
       }</div>
       <div class="code-block"><pre>${codeBlock}</pre></div>
+      
+      <button class="fix-button" onclick="fixIssue()">Fix this issue with CodeMedic</button>
+      
+      <script>
+        const vscode = acquireVsCodeApi();
+        
+        function fixIssue() {
+          vscode.postMessage({
+            command: 'fixIssue'
+          });
+        }
+      </script>
     </body>
     </html>
   `;

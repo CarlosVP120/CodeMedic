@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import StateGraph, END
 from langchain_core.tools import Tool
 from models.GithubRepositoryDataModel import GithubRepositoryData
+from models.GitHubIssueModel import GitHubIssue
 from langchain_core.messages import BaseMessage
 import json
 from tools.tools import get_repository_file_names, create_local_file, get_repository_file_content, get_github_issue,get_github_issues
@@ -32,7 +33,7 @@ class AgentState(TypedDict):
     tool_result: Optional[str]
 
 
-def main():
+def main(issue_data: Optional[GitHubIssue] = None):
     # Cargar variables de entorno
     if "GITHUB_TOKEN" in os.environ:
         print("\n⚠️  Limpiando GITHUB_TOKEN existente en variables de entorno...")
@@ -95,26 +96,26 @@ def main():
 
     # ---- LLM Setup ----
     #model = ChatOllama(model="qwen3:8b")
-    # llm = HuggingFaceEndpoint(
-    #     model="Qwen/Qwen3-4B",
-    #     task="text-generation",
-    #     max_new_tokens=512,
-    #     do_sample=False,
-    #     repetition_penalty=1.03
-    # )
-    # model = ChatHuggingFace(llm=llm)
-
-    model_id = "TheCasvi/Qwen3-1.7B-35KD"
-    llm = HuggingFacePipeline.from_model_id(
-        model_id=model_id,
+    llm = HuggingFaceEndpoint(
+        model="Qwen/Qwen3-4B",
         task="text-generation",
-        pipeline_kwargs={
-            "max_new_tokens": 512,
-            "do_sample": False,
-            "repetition_penalty": 1.03,
-        }
+        max_new_tokens=512,
+        do_sample=False,
+        repetition_penalty=1.03
     )
-    model = ChatHuggingFace(llm=llm, model_id=model_id)
+    model = ChatHuggingFace(llm=llm)
+
+    # model_id = "TheCasvi/Qwen3-1.7B-35KD"
+    # llm = HuggingFacePipeline.from_model_id(
+    #     model_id=model_id,
+    #     task="text-generation",
+    #     pipeline_kwargs={
+    #         "max_new_tokens": 512,
+    #         "do_sample": False,
+    #         "repetition_penalty": 1.03,
+    #     }
+    # )
+    # model = ChatHuggingFace(llm=llm, model_id=model_id)
 
 
 
@@ -195,12 +196,19 @@ def main():
         checkpointer=checkpointer
     )
 
-    issue = get_github_issue(
-        get_github_issues(
-            GithubRepositoryData(client=github_client, repository=GITHUB_REPOSITORY)
-        ),
-        issue_number=2
-    )
+    # Use the provided issue or fetch one if not provided
+    if issue_data:
+        issue = issue_data
+        print(f"Using provided issue: #{issue.number}: {issue.title}")
+    else:
+        # Fallback to fetching an issue
+        issue = get_github_issue(
+            get_github_issues(
+                GithubRepositoryData(client=github_client, repository=GITHUB_REPOSITORY)
+            ),
+            issue_number=2
+        )
+        print(f"Using fetched issue: #{issue.number}: {issue.title}")
 
     initial_messages = [
         ("system", "You are an AI agent that analyzes and fixes GitHub code issues."),
@@ -208,12 +216,14 @@ def main():
     ]
 
     inputs = {"messages": initial_messages}
-    config = {"configurable": {"thread_id": "thread-3"}}
+    config = {"configurable": {"thread_id": f"thread-issue-{issue.number}"}}
 
     result = graph.invoke(inputs, config=config)
 
     for message in result["messages"]:
         message.pretty_print()
+    
+    return {"issue_number": issue.number, "status": "processed"}
 
 if __name__ == "__main__":
     main()

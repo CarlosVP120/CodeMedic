@@ -30,6 +30,11 @@
       {
         "command": "codemedic.authenticate",
         "title": "Authenticate with GitHub"
+      },
+      {
+        "command": "codemedic.fixIssue",
+        "title": "Fix Issue with CodeMedic",
+        "icon": "$(beaker)"
       }
     ],
     "configuration": {
@@ -70,6 +75,11 @@
       "view/item/context": [
         {
           "command": "codemedic.showIssuePanel",
+          "when": "view == codemedic-issues && viewItem == issue",
+          "group": "inline"
+        },
+        {
+          "command": "codemedic.fixIssue",
           "when": "view == codemedic-issues && viewItem == issue",
           "group": "inline"
         }
