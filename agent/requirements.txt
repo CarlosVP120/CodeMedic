@@ -6,3 +6,6 @@ langgraph
 python-dotenv
 PyGithub
 pydantic>=2.0.0
+peft
+bitsandbytes
+#pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
