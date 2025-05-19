@@ -10,7 +10,6 @@ env/
 .env
 
 # VS Code
-.vscode/
 .idea/
 
 # Node
