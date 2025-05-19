@@ -1,39 +1,12 @@
 import os
-from langchain_community.chat_models import ChatOllama
-from typing import Dict, Any, List, Optional, TypedDict
-from github import Github
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
-
-from langchain_core.messages import AIMessage, HumanMessage
-from langgraph.graph import StateGraph, END
-from langchain_core.tools import Tool
-from models.GithubRepositoryDataModel import GithubRepositoryData
-from models.GitHubIssueModel import GitHubIssue
-from langchain_core.messages import BaseMessage
-import json
-from tools.tools import get_repository_file_names, create_local_file, get_repository_file_content, get_github_issue,get_github_issues
-import asyncio
+from tools.tools import *
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFacePipeline
 
 
-
-class PullRequestData(BaseModel):
-    title: str = Field(..., description="Título del pull request")
-    body: str = Field(..., description="Descripción del pull request")
-    head_branch: str = Field(..., description="Rama de origen")
-    base_branch: str = Field(..., description="Rama destino")
-    issue_number: int = Field(..., description="Número del issue relacionado")
-
-
-class AgentState(TypedDict):
-    messages: List[BaseMessage]
-    tool_result: Optional[str]
-
-
-def main(issue_data: Optional[GitHubIssue] = None):
+def main():
     # Cargar variables de entorno
     if "GITHUB_TOKEN" in os.environ:
         print("\n⚠️  Limpiando GITHUB_TOKEN existente en variables de entorno...")
@@ -70,32 +43,9 @@ def main(issue_data: Optional[GitHubIssue] = None):
         raise ValueError(f"Error al conectar con GitHub: {str(e)}")
 
 
-
-
-    # Configuración del agente
-    # Define a simple state type
-    tools = [
-        Tool.from_function(
-            func=get_repository_file_names,
-            name="get_repository_file_names",
-            description="Get a list of file names from the root of a GitHub repository."
-        ),
-        Tool.from_function(
-            func=get_repository_file_content,
-            name="get_repository_file_content",
-            description="Get the content of a specific file in the GitHub repository."
-        ),
-        Tool.from_function(
-            func=create_local_file,
-            name="create_local_file",
-            description="Create or overwrite a local file with the given content."
-        )
-    ]
-    tool_map = {tool.name: tool for tool in tools}
-    #tools=[get_repository_file_names,get_repository_file_content,create_local_file]
+    tools=[get_repository_file_names,get_repository_file_content,create_or_modify_file_for_issue,create_branch,update_file_in_branch,create_pull_request]
 
     # ---- LLM Setup ----
-    #model = ChatOllama(model="qwen3:8b")
     llm = HuggingFaceEndpoint(
         model="Qwen/Qwen3-4B",
         task="text-generation",
@@ -105,89 +55,27 @@ def main(issue_data: Optional[GitHubIssue] = None):
     )
     model = ChatHuggingFace(llm=llm)
 
-    # model_id = "TheCasvi/Qwen3-1.7B-35KD"
+    # model_id = "Qwen/Qwen3-4B"
     # llm = HuggingFacePipeline.from_model_id(
     #     model_id=model_id,
     #     task="text-generation",
     #     pipeline_kwargs={
     #         "max_new_tokens": 512,
-    #         "do_sample": False,
     #         "repetition_penalty": 1.03,
     #     }
     # )
     # model = ChatHuggingFace(llm=llm, model_id=model_id)
 
-
-
-
-    # # ---- LLM Node ----
-    # async def call_llm(state: AgentState) -> AgentState:
-    #     messages = state["messages"]
-    #     if state.get("tool_result"):
-    #         messages = messages + [AIMessage(content=state["tool_result"])]
-    #     response = await model.ainvoke(messages)
-    #     return {"messages": [response], "tool_result": None}
-    #
-    # # ---- Tool Execution Node ----
-    # async def run_tool(state: AgentState) -> AgentState:
-    #     ai_message = state["messages"][-1]
-    #     content = ai_message.content
-    #     try:
-    #         tool_name = next((name for name in tool_map if name in content), None)
-    #         if not tool_name:
-    #             return {"messages": [], "tool_result": "Tool not found."}
-    #         json_start = content.find("{")
-    #         json_end = content.rfind("}") + 1
-    #         args = json.loads(content[json_start:json_end])
-    #         result = tool_map[tool_name].invoke(args)
-    #         return {"messages": [], "tool_result": str(result)}
-    #     except Exception as e:
-    #         return {"messages": [], "tool_result": f"Tool execution error: {str(e)}"}
-    #
-    # # ---- Router ----
-    # def tool_router(state: AgentState) -> str:
-    #     ai_message = state["messages"][-1].content.lower()
-    #     for name in tool_map:
-    #         if name in ai_message:
-    #             return "run_tool"
-    #     if "end" in ai_message or "finished" in ai_message:
-    #         return END
-    #     return "run_tool"
-    #
-    # # ---- Graph Construction ----
-    # workflow = StateGraph(AgentState)
-    # workflow.add_node("call_llm", call_llm)
-    # workflow.add_node("run_tool", run_tool)
-    #
-    # workflow.set_entry_point("call_llm")
-    # workflow.add_conditional_edges("call_llm", tool_router, {
-    #     "run_tool": "run_tool",
-    #     END: END
-    # })
-    # workflow.add_edge("run_tool", "call_llm")
-    #
-    # graph = workflow.compile()
-    #
-    # async def simulate_interaction():
-    #     issue = get_github_issue(
-    #         get_github_issues(
-    #             github_repository_data=GithubRepositoryData(client=github_client, repository=GITHUB_REPOSITORY)
-    #         ),
-    #         2
-    #     )
-    #     input_message = {
-    #         "messages": [HumanMessage(content=f"Fix the following issue: {issue.__str__()}")],
-    #         "tool_result": None
+    # model_id = "TheCasvi/Qwen3-1.7B-35KD"
+    # llm = HuggingFacePipeline.from_model_id(
+    #     model_id=model_id,
+    #     task="text-generation",
+    #     pipeline_kwargs={
+    #         "max_new_tokens": 4096,
+    #         "repetition_penalty": 1.03,
     #     }
-    #
-    #     async for output, metadata in graph.astream(input_message, stream_mode=["messages", "updates"]):
-    #         if isinstance(metadata, dict) and 'call_llm' in metadata:
-    #             ai_message = metadata['call_llm']['messages'][0]
-    #             if ai_message.content:
-    #                 print(ai_message.content, end="|", flush=True)
-    #
-    # # Run the simulation
-    # asyncio.run(simulate_interaction())
+    # )
+    # model = ChatHuggingFace(llm=llm, model_id=model_id)
 
     checkpointer = MemorySaver()
     graph = create_react_agent(
@@ -196,34 +84,56 @@ def main(issue_data: Optional[GitHubIssue] = None):
         checkpointer=checkpointer
     )
 
-    # Use the provided issue or fetch one if not provided
-    if issue_data:
-        issue = issue_data
-        print(f"Using provided issue: #{issue.number}: {issue.title}")
-    else:
-        # Fallback to fetching an issue
-        issue = get_github_issue(
-            get_github_issues(
-                GithubRepositoryData(client=github_client, repository=GITHUB_REPOSITORY)
-            ),
-            issue_number=2
-        )
-        print(f"Using fetched issue: #{issue.number}: {issue.title}")
+    issue = get_github_issue(
+        get_github_issues(
+            GithubRepositoryData(github_token=github_token, repository=GITHUB_REPOSITORY)
+
+        ),
+        issue_number=2
+    )
+
+    github_repository_data:GithubRepositoryData=GithubRepositoryData(github_token=github_token, repository=GITHUB_REPOSITORY)
 
     initial_messages = [
-        ("system", "You are an AI agent that analyzes and fixes GitHub code issues."),
-        ("user", f"Analyze and fix this issue: {issue.__str__()}")
+        ("system", """You are an AI assistant that must use tools to answer questions.
+        You are provided with the following tools:
+        - get_repository_file_names(github_token, repository)
+        - get_repository_file_content(github_token, repository, file_name)
+        - create_or_modify_file_for_issue(file_path, content)
+        - create_branch(github_token,repository: ,base_branch, new_branch)
+        - update_file_in_branch( github_token ,repository ,file_path ,new_content ,commit_message ,branch)
+        - create_pull_request(github_token, repository, title, body, head_branch, base_branch, issue_number)
+
+        You should reason step-by-step, then call the appropriate tool using the format:
+        Action: tool_name
+        Action Input: JSON
+
+        Once you get a tool result, continue reasoning.
+
+        End your answer with:
+        Final Answer: [your answer here]
+        """),
+        (
+            "user",
+            f"""## ISSUE TO FIX
+    {issue.model_dump_json(indent=2)}
+
+    ## GITHUB CREDENTIALS
+    {github_repository_data.model_dump_json(indent=2)}
+
+    """
+        )
     ]
 
     inputs = {"messages": initial_messages}
-    config = {"configurable": {"thread_id": f"thread-issue-{issue.number}"}}
+    config = {"configurable": {"thread_id": "thread-3"}}
 
-    result = graph.invoke(inputs, config=config)
+    #result = graph.invoke(inputs, config=config)
+    for event in graph.stream(inputs, config=config):
+        print(event)
 
-    for message in result["messages"]:
-        message.pretty_print()
-    
-    return {"issue_number": issue.number, "status": "processed"}
+    # for message in result["messages"]:
+    #     message.pretty_print()
 
 if __name__ == "__main__":
     main()
