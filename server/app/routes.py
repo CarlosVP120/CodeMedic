@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Dict, Any
 import sys
+from datetime import datetime
 import os
 
 # Add the project root to Python path
@@ -12,12 +13,16 @@ from agent.fixer import CodeFixerAgent
 router = APIRouter()
 agent = CodeFixerAgent()
 
-class FixRequest(BaseModel):
-    code: str = Field(..., min_length=1, description="The OOP code to be fixed")
-    log: Dict[str, Any] = Field(..., description="Structured log information")
+class GitHubIssue(BaseModel):
+    number: int
+    title: str
+    body: str
+    state: str
+    created_at: datetime
+    updated_at: datetime
 
 @router.post("/fix")
-async def fix_code(req: FixRequest):
+async def fix_code(req: GitHubIssue):
     try:
         fixed = agent.fix_code(req.code, "OOP", req.log)
         return {"fixed_code": fixed}
