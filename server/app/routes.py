@@ -12,7 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.
 
 # Now we can import with relative paths
 from agent.ollama_langgraph_agent import main as agent_main
-from agent.models.GitHubIssueModel import GitHubIssue
+from agent.models.models import GitHubIssue
 
 router = APIRouter()
 

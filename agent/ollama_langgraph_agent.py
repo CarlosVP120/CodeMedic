@@ -4,9 +4,11 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 from tools.tools import *
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFacePipeline
+from typing import Optional
+from models.models import GitHubIssue
 
 
-def main():
+def main(issue_data: Optional[GitHubIssue] = None):
     # Cargar variables de entorno
     if "GITHUB_TOKEN" in os.environ:
         print("\n⚠️  Limpiando GITHUB_TOKEN existente en variables de entorno...")
@@ -84,13 +86,19 @@ def main():
         checkpointer=checkpointer
     )
 
-    issue = get_github_issue(
-        get_github_issues(
-            GithubRepositoryData(github_token=github_token, repository=GITHUB_REPOSITORY)
-
-        ),
-        issue_number=2
-    )
+    # Use the provided issue or fetch one if not provided
+    if issue_data:
+        issue = issue_data
+        print(f"Using provided issue: #{issue.number}: {issue.title}")
+    else:
+        # Fallback to fetching an issue
+        issue = get_github_issue(
+            get_github_issues(
+                GithubRepositoryData(github_token=github_token, repository=GITHUB_REPOSITORY)
+            ),
+            issue_number=2
+        )
+        print(f"Using fetched issue: #{issue.number}: {issue.title}")
 
     github_repository_data:GithubRepositoryData=GithubRepositoryData(github_token=github_token, repository=GITHUB_REPOSITORY)
 
@@ -126,14 +134,17 @@ def main():
     ]
 
     inputs = {"messages": initial_messages}
-    config = {"configurable": {"thread_id": "thread-3"}}
+    config = {"configurable": {"thread_id": f"thread-issue-{issue.number}"}}
 
-    #result = graph.invoke(inputs, config=config)
-    for event in graph.stream(inputs, config=config):
-        print(event)
-
-    # for message in result["messages"]:
-    #     message.pretty_print()
+    # Stream results when executed normally
+    if issue_data is None:
+        for event in graph.stream(inputs, config=config):
+            print(event)
+        return {"status": "streamed"}
+    # Return results directly when called from the API
+    else:
+        result = graph.invoke(inputs, config=config)
+        return {"issue_number": issue.number, "status": "processed"}
 
 if __name__ == "__main__":
     main()
