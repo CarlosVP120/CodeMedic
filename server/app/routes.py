@@ -5,27 +5,23 @@ import sys
 from datetime import datetime
 import os
 
-# Add the project root to Python path
+# Add the project root and agent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'agent'))
 
-from agent.fixer import CodeFixerAgent
+# Now we can import with relative paths
+from agent.ollama_langgraph_agent import main as agent_main
+from agent.models.GitHubIssueModel import GitHubIssue
 
 router = APIRouter()
-agent = CodeFixerAgent()
-
-class GitHubIssue(BaseModel):
-    number: int
-    title: str
-    body: str
-    state: str
-    created_at: datetime
-    updated_at: datetime
 
 @router.post("/fix")
-async def fix_code(req: GitHubIssue):
+async def fix_code(issue: GitHubIssue):
     try:
-        fixed = agent.fix_code(req.code, "OOP", req.log)
-        return {"fixed_code": fixed}
+        # Call the agent's main function with the issue
+        result = agent_main(issue)
+        return {"result": "Issue processing started", "details": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
