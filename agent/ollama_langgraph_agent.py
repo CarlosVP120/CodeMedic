@@ -15,7 +15,7 @@ from langchain_core.messages import BaseMessage
 import json
 from tools.tools import get_repository_file_names, create_local_file, get_repository_file_content, get_github_issue,get_github_issues
 import asyncio
-from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFacePipeline
 
 
 
@@ -95,14 +95,29 @@ def main():
 
     # ---- LLM Setup ----
     #model = ChatOllama(model="qwen3:8b")
-    llm = HuggingFaceEndpoint(
-        model="Qwen/Qwen3-4B",
+    # llm = HuggingFaceEndpoint(
+    #     model="Qwen/Qwen3-4B",
+    #     task="text-generation",
+    #     max_new_tokens=512,
+    #     do_sample=False,
+    #     repetition_penalty=1.03
+    # )
+    # model = ChatHuggingFace(llm=llm)
+
+    model_id = "TheCasvi/Qwen3-1.7B-35KD"
+    llm = HuggingFacePipeline.from_model_id(
+        model_id=model_id,
         task="text-generation",
-        max_new_tokens=512,
-        do_sample=False,
-        repetition_penalty=1.03
+        pipeline_kwargs={
+            "max_new_tokens": 512,
+            "do_sample": False,
+            "repetition_penalty": 1.03,
+        }
     )
-    model = ChatHuggingFace(llm=llm)
+    model = ChatHuggingFace(llm=llm, model_id=model_id)
+
+
+
 
     # # ---- LLM Node ----
     # async def call_llm(state: AgentState) -> AgentState:
