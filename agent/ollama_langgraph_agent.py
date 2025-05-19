@@ -11,7 +11,6 @@ from models.models import GitHubIssue
 def main(issue_data: Optional[GitHubIssue] = None):
     # Cargar variables de entorno
     if "GITHUB_TOKEN" in os.environ:
-        print("\n⚠️  Limpiando GITHUB_TOKEN existente en variables de entorno...")
         del os.environ["GITHUB_TOKEN"]
 
     # Cargar variables de entorno desde .env
@@ -27,7 +26,6 @@ def main(issue_data: Optional[GitHubIssue] = None):
     try:
         print("\n🔍 Verificando conexión con GitHub...")
         github_client = Github(github_token)
-        print("Token: ", github_token)
 
         # Verificar token y usuario
         try:

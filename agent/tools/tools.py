@@ -211,7 +211,6 @@ def create_pull_request(
     """
     try:
         print("📦 inside create_pull_request")
-        print(github_token)
         print(repository)
         print(title)
         print(body)
