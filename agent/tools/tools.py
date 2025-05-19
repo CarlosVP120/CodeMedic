@@ -1,13 +1,13 @@
-from typing import List, Any
-from models.GitHubIssueModel import GitHubIssue
-from models.GithubRepositoryDataModel import GithubRepositoryData
+from github import Github
+from models.models import *
+from github.GithubException import GithubException
 
 
 def get_github_issues(github_repository_data:GithubRepositoryData) -> List[GitHubIssue]:
     """Obtiene los issues abiertos del repositorio."""
     try:
         print(f"\n🔍 Intentando acceder al repositorio: {github_repository_data.repository}")
-        github_client=github_repository_data.client
+        github_client = Github(github_repository_data.github_token)
         repo = github_client.get_repo(github_repository_data.repository)
         print("✓ Repositorio encontrado")
 
@@ -33,9 +33,10 @@ def get_github_issues(github_repository_data:GithubRepositoryData) -> List[GitHu
 
         return issues_list
     except Exception as e:
+        print("Exception in get_github_issues")
         print(f"\n❌ Error al obtener issues: {str(e)}")
         print(f"Repositorio: {github_repository_data.repository}")
-        print(f"Token válido: {'Sí' if github_repository_data.token else 'No'}")
+        print(f"Token válido: {'Sí' if github_repository_data.github_token else 'No'}")
         print("\nDetalles del error:")
         print(f"- Tipo de error: {type(e).__name__}")
         print(f"- Mensaje: {str(e)}")
@@ -47,29 +48,17 @@ def get_github_issue(issues:List[GitHubIssue],issue_number:int)-> GitHubIssue | 
             return issue
     return None
 
-def get_repository_file_names(github_repository_data:GithubRepositoryData)->List[str]:
+def get_repository_file_names(github_token: str, repository: str) -> List[str]:
     """
-       Returns the list of file names from the root of the given GitHub repository.
-
-       Args:
-           github_repository_data: Object containing the GitHub client and repository name.
-
-       Returns:
-           A list of file names found in the repository.
-       """
+    Returns the list of file names from the root of the given GitHub repository.
+    """
     try:
-        print(f"\n🔍 Intentando acceder al repositorio: {github_repository_data.repository}")
-        github_client=github_repository_data.client
-        repo = github_client.get_repo(github_repository_data.repository)
+        print(f"\n🔍 Intentando acceder al repositorio: {repository}")
+        github_client = Github(github_token)
+        repo = github_client.get_repo(repository)
         print("✓ Repositorio encontrado")
-
     except Exception as e:
-        print(f"\n❌ Error al obtener issues: {str(e)}")
-        print(f"Repositorio: {github_repository_data.repository}")
-        print(f"Token válido: {'Sí' if github_repository_data.token else 'No'}")
-        print("\nDetalles del error:")
-        print(f"- Tipo de error: {type(e).__name__}")
-        print(f"- Mensaje: {str(e)}")
+        print(f"❌ Error al obtener issues: {str(e)}")
         return []
 
     contents = repo.get_contents("")
@@ -80,54 +69,166 @@ def get_repository_file_names(github_repository_data:GithubRepositoryData)->List
             contents.extend(repo.get_contents(file_content.path))
         else:
             files_list.append(file_content.name)
-            print("File name: ",file_content.name)
+            print("File name: ", file_content.name)
     return files_list
 
-def get_repository_file_content(github_repository_data:GithubRepositoryData,file_name:str)-> str:
+
+
+def get_repository_file_content(github_token: str, repository: str, file_name: str) -> str:
     """
-       Retrieves the content of a specific file from the GitHub repository.
-
-       Args:
-           github_repository_data: Object containing the GitHub client and repository name.
-           file_name: Name of the file to fetch from the repository.
-
-       Returns:
-           The decoded content of the file as a string.
-       """
+    Retrieves the content of a specific file from the GitHub repository.
+    """
     try:
-        print(f"\n🔍 Intentando acceder al repositorio: {github_repository_data.repository}")
-        github_client = github_repository_data.client
-        repo = github_client.get_repo(github_repository_data.repository)
+        print(f"\n🔍 Intentando acceder al repositorio: {repository}")
+        github_client = Github(github_token)
+        repo = github_client.get_repo(repository)
         print("✓ Repositorio encontrado")
-
     except Exception as e:
-        print(f"\n❌ Error al obtener issues: {str(e)}")
-        print(f"Repositorio: {github_repository_data.repository}")
-        print(f"Token válido: {'Sí' if github_repository_data.token else 'No'}")
-        print("\nDetalles del error:")
-        print(f"- Tipo de error: {type(e).__name__}")
-        print(f"- Mensaje: {str(e)}")
-        return []
+        return f"❌ Error al conectar con el repositorio: {str(e)}"
 
     try:
+        print("Trying to retrieve file content")
         content = repo.get_contents(file_name)
+        print("content file: ", content)
         return content.decoded_content.decode()
     except Exception as e:
         return f"Error al obtener el contenido del archivo: {str(e)}"
 
 
-def create_local_file(file_path: str, content: str) -> str:
+def create_or_modify_file_for_issue(file_path: str, content: str) -> str:
     """
     Creates or overwrites a local file with the given content.
-    Args:
-        file_path: Ruta local donde se creará el archivo.
-        content: Contenido que se escribirá en el archivo.
-    Returns:
-        str: Success message or error.
     """
     try:
+        print("📄 inside create_or_modify_file_for_issue")
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
-        return f"Archivo local creado/actualizado exitosamente en: {file_path}"
+        return f"✅ Archivo local creado/actualizado en: {file_path}"
     except Exception as e:
-        return f"Error al crear el archivo local: {str(e)}"
+        return f"❌ Error al crear el archivo local: {str(e)}"
+
+
+def create_branch(
+        github_token: str,
+        repository: str,
+        base_branch: str,
+        new_branch: str
+) -> str:
+    """
+    Creates a new branch from the specified base branch.
+
+    Args:
+        github_token: GitHub access token.
+        repository: Repository name in 'owner/repo' format.
+        base_branch: The branch to branch off from (e.g., 'main').
+        new_branch: The name of the new branch to create.
+
+    Returns:
+        The name of the created branch or an error message.
+    """
+    try:
+        print(f"🌿 Creating branch '{new_branch}' from '{base_branch}' in repo '{repository}'")
+
+        github_client = Github(github_token)
+        repo = github_client.get_repo(repository)
+
+        # Get the commit SHA of the base branch
+        base_ref = repo.get_git_ref(f"heads/{base_branch}")
+        base_sha = base_ref.object.sha
+
+        # Create new branch ref
+        new_ref = f"refs/heads/{new_branch}"
+        repo.create_git_ref(ref=new_ref, sha=base_sha)
+
+        print(f"✅ Branch '{new_branch}' created")
+        return f"Branch '{new_branch}' created successfully"
+
+    except GithubException as e:
+        if e.status == 422:
+            return f"⚠️ Branch '{new_branch}' already exists."
+        else:
+            print(f"❌ GitHub Exception: {e.data}")
+            return f"❌ GitHub error: {e.data.get('message', str(e))}"
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        return f"❌ Error: {str(e)}"
+
+
+def update_file_in_branch(
+    github_token: str,
+    repository: str,
+    file_path: str,
+    new_content: str,
+    commit_message: str,
+    branch: str
+) -> str:
+    """
+    Updates a file in the specified GitHub branch.
+
+    Args:
+        github_token: GitHub token for authentication.
+        repository: Repo name in 'owner/repo' format.
+        file_path: Path to the file to update.
+        new_content: New content for the file (as a string).
+        commit_message: Commit message for the change.
+        branch: Branch name to commit to.
+
+    Returns:
+        Status message indicating success or error.
+    """
+    try:
+        github_client = Github(github_token)
+        repo = github_client.get_repo(repository)
+
+        # Get the current file SHA (required to update the file)
+        contents = repo.get_contents(file_path, ref=branch)
+        current_sha = contents.sha
+
+        # Commit the updated content
+        repo.update_file(
+            path=file_path,
+            message=commit_message,
+            content=new_content,
+            sha=current_sha,
+            branch=branch
+        )
+
+        return f"✅ File '{file_path}' updated on branch '{branch}'"
+    except Exception as e:
+        print(f"❌ Error updating file: {str(e)}")
+        return f"❌ Error: {str(e)}"
+
+def create_pull_request(
+    github_token: str,
+    repository: str,
+    title: str,
+    body: str,
+    head_branch: str,
+    base_branch: str
+) -> Any:
+    """
+    Creates a pull request with the given data.
+    """
+    try:
+        print("📦 inside create_pull_request")
+        print(github_token)
+        print(repository)
+        print(title)
+        print(body)
+        print(head_branch)
+        print(base_branch)
+
+
+        github_client = Github(github_token)
+        repo = github_client.get_repo(repository)
+        pull_request = repo.create_pull(
+            title=title,
+            body=body,
+            head=head_branch,
+            base=base_branch
+        )
+        print(f"✅ Pull request creado: {pull_request.html_url}")
+        return pull_request.html_url
+    except Exception as e:
+        print(f"❌ Error al crear el pull request: {str(e)}")
+        return str(e)
