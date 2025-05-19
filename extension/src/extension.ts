@@ -94,6 +94,14 @@ function showIssuePanel(issue: any) {
 }
 
 function getIssueHtml(issue: any): string {
+  const codeBlock =
+    `GitHubIssue(\n` +
+    `  number: ${JSON.stringify(issue.number)},\n` +
+    `  title: ${JSON.stringify(issue.title)},\n` +
+    `  body: ${JSON.stringify(issue.body)},\n` +
+    `  state: ${JSON.stringify(issue.state)},\n` +
+    `  created_at: ${JSON.stringify(issue.created_at)},\n` +
+    `  updated_at: ${JSON.stringify(issue.updated_at)}\n)`;
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -109,6 +117,7 @@ function getIssueHtml(issue: any): string {
         .label { display: inline-block; background: #eee; color: #333; border-radius: 3px; padding: 2px 8px; margin-right: 4px; font-size: 0.9em; }
         .meta { color: #666; font-size: 0.95em; margin-bottom: 1rem; }
         .body { white-space: pre-wrap; margin-top: 1.5rem; }
+        .code-block { background: #23272e; color: #e6e6e6; border-radius: 6px; padding: 1rem; margin-top: 2rem; font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace; font-size: 1em; overflow-x: auto; box-shadow: 0 2px 8px #0001; }
       </style>
     </head>
     <body>
@@ -130,6 +139,7 @@ function getIssueHtml(issue: any): string {
           ? issue.body.replace(/</g, "&lt;")
           : "<i>No description provided.</i>"
       }</div>
+      <div class="code-block"><pre>${codeBlock}</pre></div>
     </body>
     </html>
   `;
