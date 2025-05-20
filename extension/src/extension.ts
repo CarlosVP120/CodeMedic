@@ -256,9 +256,15 @@ function showIssuePanel(issue: any, context: vscode.ExtensionContext, agentRespo
 async function fixIssue(issue: any, webview?: vscode.Webview, agentResponseProvider?: AgentResponseProvider): Promise<void> {
   try {
     vscode.window.showInformationMessage(`Starting to fix issue #${issue.number}...`);
-    
+
     // Prepare issue data for the API
-    const issueData = {
+
+    const github_credentials={
+      token:"",
+      repository_name: "Elcasvi/Code-Fixer-LLM-Agent"
+    };
+
+    const issue_data={
       number: issue.number,
       title: issue.title,
       body: issue.body || "",
@@ -266,7 +272,13 @@ async function fixIssue(issue: any, webview?: vscode.Webview, agentResponseProvi
       created_at: issue.created_at,
       updated_at: issue.updated_at
     };
-    
+
+    const FixCodeRequest = {
+      github_credentials: github_credentials,
+      issue_data: issue_data
+    };
+
+
     // Configure progress notification
     await vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
@@ -274,18 +286,18 @@ async function fixIssue(issue: any, webview?: vscode.Webview, agentResponseProvi
       cancellable: false
     }, async (progress) => {
       progress.report({ message: "Sending issue to CodeMedic agent..." });
-      
+
       try {
         // Send the issue to the API
-        const response = await axios.post("http://localhost:8000/api/fix", issueData);
-        
+        const response = await axios.post("http://localhost:8000/api/fix/issue", FixCodeRequest);
+
         progress.report({ message: "Issue processed by agent", increment: 100 });
-        
+
         // Show success message
         vscode.window.showInformationMessage(
           `Issue #${issue.number} has been processed by the agent.`
         );
-        
+
         // If webview is provided, send the response to it
         if (webview) {
           webview.postMessage({
@@ -293,19 +305,19 @@ async function fixIssue(issue: any, webview?: vscode.Webview, agentResponseProvi
             response: response.data
           });
         }
-        
+
         // If agent response provider is provided, add the response to it
         if (agentResponseProvider) {
           agentResponseProvider.addResponse(issue, response.data);
         }
-        
+
         return response.data;
       } catch (error) {
         vscode.window.showErrorMessage(`Failed to connect to CodeMedic server: ${error}`);
         throw error;
       }
     });
-    
+
   } catch (error) {
     vscode.window.showErrorMessage(`Error fixing issue: ${error}`);
   }
