@@ -2,10 +2,10 @@ import os
 from dotenv import load_dotenv
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
-from tools.tools import *
+from agent.tools.tools import *
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFacePipeline
 from typing import Optional
-from models.models import GitHubIssue
+from agent.models.models import GitHubIssue
 
 
 def main(issue_data: Optional[GitHubIssue] = None):
