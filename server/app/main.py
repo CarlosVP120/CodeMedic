@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from routes import router
-import uvicorn
+
+from app.routers.AgentRoutes import router
 
 app = FastAPI(title="CodeMedic API")
 

@@ -62,14 +62,14 @@ def main(issue_data: Optional[GitHubIssue] = None):
     #     api_key=api_key
     # )
 
-    # llm = HuggingFaceEndpoint(
-    #     model="Qwen/Qwen3-4B",
-    #     task="text-generation",
-    #     max_new_tokens=512,
-    #     do_sample=False,
-    #     repetition_penalty=1.03
-    # )
-    # model = ChatHuggingFace(llm=llm)
+    llm = HuggingFaceEndpoint(
+        model="Qwen/Qwen3-4B",
+        task="text-generation",
+        max_new_tokens=512,
+        do_sample=False,
+        repetition_penalty=1.03
+    )
+    model = ChatHuggingFace(llm=llm)
 
     # model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
     # llm = HuggingFacePipeline.from_model_id(
