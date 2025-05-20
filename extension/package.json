@@ -1,69 +1,25 @@
 {
   "name": "codemedic",
   "displayName": "CodeMedic",
-  "description": "Manage and resolve GitHub issues directly within VSCode",
+  "description": "AI-powered code issue fixer",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.99.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
-    "Other",
-    "SCM Providers"
+    "Other"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onView:codemedic-issues",
-    "onView:codemedic-agent-responses"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "codemedic.refreshIssues",
-        "title": "Refresh Issues",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "codemedic.showIssuePanel",
-        "title": "Show Issue Details",
-        "icon": "$(eye)"
-      },
-      {
-        "command": "codemedic.authenticate",
-        "title": "Authenticate with GitHub"
-      },
-      {
-        "command": "codemedic.fixIssue",
-        "title": "Fix Issue with CodeMedic",
-        "icon": "$(beaker)"
-      },
-      {
-        "command": "codemedic.clearResponses",
-        "title": "Clear Agent Responses",
-        "icon": "$(clear-all)"
-      },
-      {
-        "command": "codemedic.showAgentResponse",
-        "title": "Show Agent Response Details",
-        "icon": "$(open-preview)"
-      }
-    ],
-    "configuration": {
-      "title": "CodeMedic",
-      "properties": {
-        "codemedic.openaiApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "API key for OpenAI to enable AI-powered issue solutions"
-        }
-      }
-    },
     "viewsContainers": {
       "activitybar": [
         {
           "id": "codemedic-sidebar",
           "title": "CodeMedic",
-          "icon": "$(bug)"
+          "icon": "resources/logo.png"
         }
       ]
     },
@@ -79,60 +35,63 @@
         }
       ]
     },
-    "menus": {
-      "view/title": [
-        {
-          "command": "codemedic.refreshIssues",
-          "when": "view == codemedic-issues",
-          "group": "navigation"
-        },
-        {
-          "command": "codemedic.clearResponses",
-          "when": "view == codemedic-agent-responses",
-          "group": "navigation"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "codemedic.showIssuePanel",
-          "when": "view == codemedic-issues && viewItem == issue",
-          "group": "inline"
-        },
-        {
-          "command": "codemedic.fixIssue",
-          "when": "view == codemedic-issues && viewItem == issue",
-          "group": "inline"
-        },
-        {
-          "command": "codemedic.showAgentResponse",
-          "when": "view == codemedic-agent-responses && viewItem == agentResponse",
-          "group": "inline"
-        }
-      ]
-    }
+    "commands": [
+      {
+        "command": "codemedic.refreshIssues",
+        "title": "Refresh Issues",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "codemedic.authenticate",
+        "title": "Authenticate with GitHub",
+        "icon": "$(github)"
+      },
+      {
+        "command": "codemedic.showIssuePanel",
+        "title": "Show Issue Details",
+        "icon": "$(info)"
+      },
+      {
+        "command": "codemedic.fixIssue",
+        "title": "Fix Issue with Agent",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "codemedic.showAgentResponse",
+        "title": "Show Agent Response",
+        "icon": "$(output)"
+      },
+      {
+        "command": "codemedic.clearResponses",
+        "title": "Clear Agent Responses",
+        "icon": "$(clear-all)"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src",
-    "test": "vscode-test"
-  },
-  "dependencies": {
-    "@octokit/rest": "^20.1.0",
-    "axios": "^1.6.7",
-    "simple-git": "^3.23.0"
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.99.0",
-    "@types/mocha": "^10.0.10",
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.6",
     "@types/node": "20.x",
-    "@typescript-eslint/eslint-plugin": "^8.31.1",
-    "@typescript-eslint/parser": "^8.31.1",
-    "eslint": "^9.25.1",
-    "typescript": "^5.8.3",
-    "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.5.2"
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vscode/test-electron": "^2.3.8",
+    "eslint": "^8.56.0",
+    "glob": "^10.3.10",
+    "mocha": "^10.2.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.1.1",
+    "axios": "^1.6.2",
+    "simple-git": "^3.27.0"
   }
 }
