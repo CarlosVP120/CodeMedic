@@ -12,7 +12,8 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onView:codemedic-issues"
+    "onView:codemedic-issues",
+    "onView:codemedic-agent-responses"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -35,6 +36,16 @@
         "command": "codemedic.fixIssue",
         "title": "Fix Issue with CodeMedic",
         "icon": "$(beaker)"
+      },
+      {
+        "command": "codemedic.clearResponses",
+        "title": "Clear Agent Responses",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "codemedic.showAgentResponse",
+        "title": "Show Agent Response Details",
+        "icon": "$(open-preview)"
       }
     ],
     "configuration": {
@@ -61,6 +72,10 @@
         {
           "id": "codemedic-issues",
           "name": "GitHub Issues"
+        },
+        {
+          "id": "codemedic-agent-responses",
+          "name": "Agent Responses"
         }
       ]
     },
@@ -69,6 +84,11 @@
         {
           "command": "codemedic.refreshIssues",
           "when": "view == codemedic-issues",
+          "group": "navigation"
+        },
+        {
+          "command": "codemedic.clearResponses",
+          "when": "view == codemedic-agent-responses",
           "group": "navigation"
         }
       ],
@@ -81,6 +101,11 @@
         {
           "command": "codemedic.fixIssue",
           "when": "view == codemedic-issues && viewItem == issue",
+          "group": "inline"
+        },
+        {
+          "command": "codemedic.showAgentResponse",
+          "when": "view == codemedic-agent-responses && viewItem == agentResponse",
           "group": "inline"
         }
       ]
