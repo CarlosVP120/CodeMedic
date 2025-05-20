@@ -46,16 +46,32 @@ def main(issue_data: Optional[GitHubIssue] = None):
     tools=[get_repository_file_names,get_repository_file_content,create_or_modify_file_for_issue,create_branch,update_file_in_branch,create_pull_request]
 
     # ---- LLM Setup ----
-    llm = HuggingFaceEndpoint(
-        model="Qwen/Qwen3-4B",
-        task="text-generation",
-        max_new_tokens=512,
-        do_sample=False,
-        repetition_penalty=1.03
-    )
-    model = ChatHuggingFace(llm=llm)
+    # from langchain_openai import AzureChatOpenAI
+    # load_dotenv(dotenv_path=".env")
+    # load_dotenv()
+    # api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    # endpoint = os.getenv("AZURE_OPENAI_ENDPOINT_GPT4")
+    # model = AzureChatOpenAI(
+    #     azure_endpoint=endpoint,
+    #     azure_deployment="gpt-4o",
+    #     api_version="2025-01-01-preview",
+    #     temperature=0,
+    #     max_tokens=1000,
+    #     timeout=None,
+    #     max_retries=2,
+    #     api_key=api_key
+    # )
 
-    # model_id = "Qwen/Qwen3-4B"
+    # llm = HuggingFaceEndpoint(
+    #     model="Qwen/Qwen3-4B",
+    #     task="text-generation",
+    #     max_new_tokens=512,
+    #     do_sample=False,
+    #     repetition_penalty=1.03
+    # )
+    # model = ChatHuggingFace(llm=llm)
+
+    # model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
     # llm = HuggingFacePipeline.from_model_id(
     #     model_id=model_id,
     #     task="text-generation",
