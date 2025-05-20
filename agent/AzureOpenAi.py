@@ -41,6 +41,7 @@ inputs = {"messages": [("system", "Please use the available tools to resolve the
 for event in graph.stream(inputs):
     print(event)
 
+print("-----------------------------------------------------------------------------------------------------------------")
 messages = graph.invoke(inputs)
 for message in messages["messages"]:
     print(message.content)
