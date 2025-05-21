@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 
 export interface AgentResponse {
-    result?: string;
-    details?: any;
-    agent_output?: string;
+    result: 'processing' | 'complete' | 'error';
+    details: string;
+    error?: string;
 }
 
 export class AgentResponseItem extends vscode.TreeItem {

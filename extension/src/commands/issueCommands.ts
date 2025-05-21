@@ -105,7 +105,7 @@ function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, ag
     );
 }
 
-async function fixIssue(
+export async function fixIssue(
     issue: GitHubIssue, 
     webview?: vscode.Webview, 
     agentResponseProvider?: AgentResponseProvider,
@@ -117,7 +117,10 @@ async function fixIssue(
             throw new Error('GitHub service or Agent service not initialized');
         }
 
-        const githubCredentials = githubService.getCredentials();
+        // Get GitHub credentials
+        const githubCredentials = await githubService.getCredentials();
+        
+        // Use the agent service to fix the issue
         const response = await agentService.fixIssue(issue, githubCredentials);
 
         // If webview is provided, send the response to it

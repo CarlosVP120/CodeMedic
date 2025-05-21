@@ -66,7 +66,16 @@
         "title": "Clear Agent Responses",
         "icon": "$(clear-all)"
       }
-    ]
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "codemedic.fixIssue",
+          "when": "view == codemedic-issues && viewItem == issue",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

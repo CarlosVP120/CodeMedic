@@ -3,7 +3,7 @@ from langgraph.prebuilt import create_react_agent
 from app.models.models import*
 from github import Github
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFacePipeline
-from langchain_openai import AzureChatOpenAI
+#from langchain_openai import AzureChatOpenAI
 import os
 from dotenv import load_dotenv
 
@@ -40,32 +40,32 @@ class Agent:
         tools=[get_repository_file_names,get_repository_file_content,create_or_modify_file_for_issue,create_branch,update_file_in_branch,create_pull_request]
 
         # ---- LLM Setup ----
-        load_dotenv(dotenv_path=".env")
-        load_dotenv()
-        api_key = os.getenv("AZURE_OPENAI_API_KEY")
-        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT_GPT4")
-        model = AzureChatOpenAI(
-            azure_endpoint=endpoint,
-            azure_deployment="gpt-4o",
-            api_version="2025-01-01-preview",
-            temperature=0,
-            max_tokens=1000,
-            timeout=None,
-            max_retries=2,
-            api_key=api_key
-        )
+        # load_dotenv(dotenv_path=".env")
+        # load_dotenv()
+        # api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        # endpoint = os.getenv("AZURE_OPENAI_ENDPOINT_GPT4")
+        # model = AzureChatOpenAI(
+        #     azure_endpoint=endpoint,
+        #     azure_deployment="gpt-4o",
+        #     api_version="2025-01-01-preview",
+        #     temperature=0,
+        #     max_tokens=1000,
+        #     timeout=None,
+        #     max_retries=2,
+        #     api_key=api_key
+        # )
 
         # """
         # Set a env var in deployment, adding the HUGGINGFACEHUB_API_TOKEN
         # """
-        # llm = HuggingFaceEndpoint(
-        #     model="Qwen/Qwen3-4B",
-        #     task="text-generation",
-        #     max_new_tokens=512,
-        #     do_sample=False,
-        #     repetition_penalty=1.03
-        # )
-        # model = ChatHuggingFace(llm=llm)
+        llm = HuggingFaceEndpoint(
+            model="Qwen/Qwen3-4B",
+            task="text-generation",
+            max_new_tokens=512,
+            do_sample=False,
+            repetition_penalty=1.03
+        )
+        model = ChatHuggingFace(llm=llm)
 
         # model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
         # llm = HuggingFacePipeline.from_model_id(

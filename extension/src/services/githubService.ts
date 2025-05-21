@@ -79,23 +79,33 @@ export class GitHubService {
         return { owner, repo };
     }
 
-    getCredentials(): GitHubCredentials {
-        if (!this.octokit) {
-            console.log('Credentials not configured:', {
-                hasOctokit: !!this.octokit
-            });
-            throw new Error('GitHub credentials not configured');
-        }
+    async getCredentials(): Promise<GitHubCredentials> {
+        try {
+            if (!this.octokit) {
+                console.log('Credentials not configured:', {
+                    hasOctokit: !!this.octokit
+                });
+                throw new Error('GitHub credentials not configured');
+            }
 
-        const token = this.context.globalState.get<string>('githubToken');
-        if (!token) {
-            throw new Error('GitHub token not found');
-        }
+            const token = this.context.globalState.get<string>('githubToken');
+            if (!token) {
+                throw new Error('GitHub token not found');
+            }
 
-        return {
-            token: token,
-            repository_name: this.repository
-        };
+            const repoInfo = await this.getRepoInfo();
+            if (!repoInfo) {
+                throw new Error('Repository information not found');
+            }
+
+            return {
+                token: token,
+                repository_name: `${repoInfo.owner}/${repoInfo.repo}`
+            };
+        } catch (error) {
+            console.error('Error getting credentials:', error);
+            throw error;
+        }
     }
 
     async getIssues(): Promise<GitHubIssue[]> {
