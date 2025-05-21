@@ -1,5 +1,6 @@
 import { GitHubIssue } from '../models/issue';
 import { AgentResponse } from '../models/agentResponse';
+import { extractLargestAIMessageContent, extractPythonCodeBlocks } from './logFilters';
 
 export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
   return `
@@ -457,7 +458,10 @@ export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
   `;
 }
 
-export function getAgentResponseHtml(title: string, response: any): string {
+export function getAgentResponseHtml(title: string, response: any, logoUrl: string): string {
+  const aiMessageContent = extractLargestAIMessageContent(response.details);
+  const bodyContent = response.body ? response.body : '';
+
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -471,7 +475,6 @@ export function getAgentResponseHtml(title: string, response: any): string {
           --primary-light: #3b82f6;
           --primary-dark: #1d4ed8;
           --success-color: #10b981;
-          --success-hover: #059669;
           --text-primary: #1f2937;
           --text-secondary: #6b7280;
           --text-muted: #9ca3af;
@@ -481,20 +484,11 @@ export function getAgentResponseHtml(title: string, response: any): string {
           --border-color: #e5e7eb;
           --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
           --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-          --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
           --radius-sm: 4px;
           --radius-md: 6px;
           --radius-lg: 8px;
-          --radius-full: 9999px;
-          --transition: all 0.2s ease;
         }
-        
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
-        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
           line-height: 1.5;
@@ -502,158 +496,142 @@ export function getAgentResponseHtml(title: string, response: any): string {
           background-color: var(--bg-secondary);
           padding: 0;
           margin: 0;
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
         }
-        
-        .container {
-          max-width: 950px;
-          margin: 0 auto;
-          padding: 2rem;
-          background-color: var(--bg-primary);
-          box-shadow: var(--shadow-md);
-          border-radius: var(--radius-lg);
-          margin-top: 2rem;
-          margin-bottom: 2rem;
-          transition: var(--transition);
-        }
-        
-        .container:hover {
-          box-shadow: var(--shadow-lg);
-        }
-        
         .navbar {
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: flex-start;
           padding: 0.75rem 1.5rem;
           background: #15426d;
           color: white;
           box-shadow: var(--shadow-md);
-          position: sticky;
-          top: 0;
-          z-index: 100;
         }
-        
         .logo-container {
           display: flex;
           align-items: center;
           gap: 0.75rem;
         }
-        
         .app-name {
           font-size: 1.25rem;
           font-weight: 600;
           letter-spacing: 0.5px;
         }
-        
+        .container {
+          max-width: 950px;
+          margin: 2rem auto;
+          padding: 2rem;
+          background-color: var(--bg-primary);
+          box-shadow: var(--shadow-md);
+          border-radius: var(--radius-lg);
+        }
         .header {
           border-bottom: 1px solid var(--border-color);
           padding-bottom: 1.25rem;
           margin-bottom: 1.5rem;
         }
-        
         .title {
           font-size: 1.5rem;
           font-weight: 600;
           color: var(--text-primary);
           margin-bottom: 0.75rem;
-          line-height: 1.3;
         }
-        
-        .meta {
+        .response-section {
+          margin-top: 1.5rem;
+        }
+        .response-title {
+          font-size: 1.25rem;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin-bottom: 1rem;
           display: flex;
-          gap: 1.25rem;
-          flex-wrap: wrap;
           align-items: center;
-          color: var(--text-secondary);
-          font-size: 0.875rem;
+          gap: 0.5rem;
+        }
+        .response-content {
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: var(--radius-md);
+          padding: 1.25rem;
+          font-size: 0.9375rem;
+          white-space: pre-wrap;
+          overflow-x: auto;
+        }
+        .status {
+          font-weight: 500;
           margin-bottom: 1rem;
         }
-        
-        .meta-item {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
+        .status-success {
+          color: var(--success-color);
         }
-        
-        .status-badge {
-          display: inline-flex;
-          align-items: center;
-          padding: 0.25rem 0.75rem;
-          border-radius: var(--radius-full);
-          font-size: 0.75rem;
-          font-weight: 500;
-          background-color: #dcfce7;
-          color: #166534;
-          box-shadow: var(--shadow-sm);
+        pre, code {
+          background-color: #f1f5f9;
+          padding: 1rem;
+          border-radius: var(--radius-sm);
+          overflow-x: auto;
+          white-space: pre-wrap;
+          font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+          font-size: 0.95em;
         }
-        
-        .status-badge.error {
-          background-color: #fee2e2;
-          color: #991b1b;
-        }
-        
-        .status-badge.processing {
-          background-color: #fef3c7;
-          color: #92400e;
-        }
-        
-        .content-section {
+        .body-section {
           margin-top: 2rem;
         }
-        
-        .content {
-          background-color: var(--bg-accent);
-          padding: 1.25rem;
+        .body-title {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin-bottom: 0.5rem;
+        }
+        .body-content {
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: var(--radius-md);
+          padding: 1.25rem;
           font-size: 0.9375rem;
           white-space: pre-wrap;
         }
-        
-        .code-block {
-          background-color: #1e1e1e;
-          color: #e6e6e6;
-          font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
-          font-size: 0.875rem;
-          padding: 1.25rem;
-          border-radius: var(--radius-md);
+        .section-title {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: var(--primary-color);
           margin-top: 1.5rem;
-          margin-bottom: 1.5rem;
-          overflow-x: auto;
-          white-space: pre;
+          margin-bottom: 0.5rem;
         }
       </style>
     </head>
     <body>
       <div class="navbar">
         <div class="logo-container">
+          <img src="${logoUrl}" alt="CodeMedic Logo" style="height: 24px; width: auto;">
           <span class="app-name">CodeMedic</span>
         </div>
       </div>
-      
       <div class="container">
         <div class="header">
           <h1 class="title">${title}</h1>
-          
-          <div class="meta">
-            <div class="meta-item">
-              <span class="status-badge ${response.result}">
-                ${response.result}
-              </span>
-            </div>
-            
-            <div class="meta-item">
-              Processed on ${new Date().toLocaleString()}
-            </div>
+        </div>
+        <div class="response-section">
+          <h2 class="response-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74c-3.6-.76-3.54-.75-3.67-.75-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z" fill="currentColor"/>
+            </svg>
+            Agent Response
+          </h2>
+          <div class="status status-success">
+            Status: ${response.result || 'Processing complete'}
+          </div>
+          <div class="response-content">
+            <div class="section-title">Useful output</div>
+            <pre>${aiMessageContent ? aiMessageContent : 'No se encontró contenido de AIMessage.'}</pre>
           </div>
         </div>
-        
-        <div class="content-section">
-          <div class="content">${response.details}</div>
+        ${bodyContent ? `
+        <div class="body-section">
+          <div class="body-title">Body</div>
+          <div class="body-content">${bodyContent.replace(/</g, '&lt;').replace(/\n/g, '<br>')}</div>
         </div>
+        ` : ''}
       </div>
     </body>
     </html>
   `;
-} 
+}

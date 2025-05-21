@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AgentResponseItem } from '../models/agentResponse';
 import { getAgentResponseHtml } from '../utils/htmlTemplates';
+import * as path from 'path';
 
 export function registerAgentCommands(
     context: vscode.ExtensionContext,
@@ -14,14 +15,25 @@ export function registerAgentCommands(
                     "agentResponseDetail",
                     item.label,
                     vscode.ViewColumn.Beside,
-                    { enableScripts: true }
+                    { 
+                        enableScripts: true,
+                        localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources'))]
+                    }
                 );
+                
+                // Get the path to the logo image
+                const logoPath = vscode.Uri.file(
+                    path.join(context.extensionPath, 'resources', 'logo.png')
+                );
+                
+                // Convert the URI to a string that the webview can use
+                const logoUri = panel.webview.asWebviewUri(logoPath);
                 
                 // Create a more detailed HTML view that includes the agent output
                 const responseHtml = getAgentResponseHtml(item.label, {
                     ...item.response,
                     agent_output: item.agentOutput
-                });
+                }, logoUri.toString());
                 
                 panel.webview.html = responseHtml;
             }
