@@ -131,12 +131,16 @@ class Agent:
         config = {"configurable": {"thread_id": f"thread-issue-{issue_data.number}"}}
 
         # Stream results when executed normally
-        for event in graph.stream(inputs, config=config):
-            print(event)
-            yield event
+        # for event in graph.stream(inputs, config=config):
+        #     print(event)
+        #     yield event
 
 
         # # Return results directly when called from the API
-        # else:
-        #     result = graph.invoke(inputs, config=config)
-        #     return {"issue_number": issue_data.number, "status": "processed"}
+        #result = graph.invoke(inputs, config=config)
+        #return {"issue_number": issue_data.number, "status": "processed"}
+
+        messages = graph.invoke(inputs,config=config)
+        for message in messages["messages"]:
+            print(message.content)
+            yield message
