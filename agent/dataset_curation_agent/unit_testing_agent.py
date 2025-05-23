@@ -2,13 +2,15 @@ import json
 from langgraph.graph import StateGraph, END
 from typing import TypedDict, List, Dict
 from langchain_ollama import ChatOllama
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+
 
 model = ChatOllama(
-    model="qwen3:8b",
+    model="phi4:14b",
     temperature=0,
+    callbacks=[StreamingStdOutCallbackHandler()],
     # other params...
 )
-
 
 
 # ---- Estado del agente ----
@@ -19,7 +21,7 @@ class CodeTestPair(TypedDict):
 class AgentState(TypedDict):
     code_tests: List[Dict[str, str]]
 
-# ---- Función 1: leer JSONL ----
+#i
 def read_jsonl_node(state: AgentState) -> AgentState:
     print("[Lectura] Leyendo archivo python_bugs.jsonl ...")
     with open("simple_python_bugs.jsonl", "r") as f:
@@ -31,41 +33,67 @@ def read_jsonl_node(state: AgentState) -> AgentState:
     return {"code_tests": code_tests}
 
 # ---- Función 2: generar pruebas con LLM ----
-def lm_call_node(state: AgentState) -> AgentState:
+import json
+import re
+from typing import Dict
+
+def lm_call_node(state: Dict) -> Dict:
     print("[Generación] Generando pruebas unitarias para cada código...")
+    output_path = "unit_tests_output.jsonl"
     code_tests = []
-    for idx, item in enumerate(state["code_tests"]):
-        code = item["correct_code"]
-        print(f"[Generación] Generando test para código #{idx+1} (primeros 100 chars):\n{code[:100]}\n...")
-        prompt = f"""Genera una prueba unitaria para esta función de Python siguiendo este formato exacto:
 
-METADATA = {{
-'author': 'jt',
-'dataset': 'test'
-}}
+    # Abrir el archivo en modo append al inicio
+    with open(output_path, "a") as f:
+        for idx, item in enumerate(state["code_tests"]):
+            code = item["correct_code"]
+            print(f"[Generación] Generando test para código #{idx + 1} (primeros 100 chars):\n{code[:100]}\n...")
 
+            prompt = f"""You are a code evaluation assistant.
+
+Your task is to generate a Python function named `check(candidate)` that tests the correctness of the given implementation.
+The function named `candidate` will be passed into `check()`.
+
+Instructions:
+- Use only `assert` statements to validate that `candidate(...)` produces the correct results.
+- Derive inputs and expected outputs from the function’s docstring if available.
+- If there is no docstring, make reasonable assumptions based on the function logic.
+- Do not include the implementation of the function in the output — only the check() function.
+
+Example format:
 def check(candidate):
-    # Aquí van los asserts basados en los ejemplos del docstring
-    # Usa los ejemplos del docstring para crear los asserts
+    assert candidate(2, 3) == 5
+    assert candidate(-1, 1) == 0
 
-Código a probar:
-{code}"""
-        response = model.invoke(prompt)
-        unit_test_raw = response.content.strip()
-        # Extraer solo el bloque de código si existe
-        unit_test = unit_test_raw
-        if '```' in unit_test_raw:
-            import re
-            matches = re.findall(r'```(?:python)?\n([\s\S]*?)```', unit_test_raw)
-            if matches:
-                unit_test = matches[0].strip()
-        print(f"[Generación] Test generado (primeros 100 chars):\n{unit_test[:100]}\n---")
-        code_tests.append({
-            "correct_code": code,
-            "unit_test": unit_test
-        })
+Code to test:
+{code}
+"""
+
+            response = model.invoke(prompt)
+            unit_test_raw = response.content.strip()
+
+            # Extraer solo el bloque de código si está presente
+            unit_test = unit_test_raw
+            if '```' in unit_test_raw:
+                matches = re.findall(r'```(?:python)?\n([\s\S]*?)```', unit_test_raw)
+                if matches:
+                    unit_test = matches[0].strip()
+
+            print(f"[Generación] Test generado (primeros 100 chars):\n{unit_test[:100]}\n---")
+
+            record = {
+                "correct_code": code,
+                "unit_test": unit_test
+            }
+
+            # Guardar inmediatamente en disco
+            f.write(json.dumps(record) + "\n")
+            f.flush()  # Asegura que se escriba incluso si hay una interrupción
+
+            code_tests.append(record)
+
     print(f"[Generación] Se generaron {len(code_tests)} pruebas unitarias.")
     return {"code_tests": code_tests}
+
 
 # ---- Función 3: guardar pruebas al archivo ----
 def add_to_jsonl_node(state: AgentState) -> AgentState:
