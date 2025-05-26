@@ -18,7 +18,7 @@ export function registerIssueCommands(
     context.subscriptions.push(
         vscode.commands.registerCommand(
             'codemedic.showIssuePanel',
-            async (issueItem) => {
+            async (issueItem) => {                
                 if (!issueItem) {
                     const treeView = vscode.window.createTreeView(ISSUES_VIEW_ID, {
                         treeDataProvider: issueProvider
@@ -33,7 +33,8 @@ export function registerIssueCommands(
                     issueItem = selectedItem;
                 }
                 if (issueItem.contextValue === "issue") {
-                    showIssuePanel(issueItem.issue, context, agentResponseProvider);
+                    console.log('🔧 Opening issue panel for issue:', issueItem.issue.number);
+                    showIssuePanel(issueItem.issue, context, agentResponseProvider, githubService, agentService);
                 } else {
                     vscode.window.showErrorMessage("Please select a valid GitHub issue.");
                 }
@@ -70,13 +71,14 @@ export function registerIssueCommands(
     );
 }
 
-function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, agentResponseProvider: AgentResponseProvider) {
+function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, agentResponseProvider: AgentResponseProvider, githubService: GitHubService, agentService: AgentService) {    
     const panel = vscode.window.createWebviewPanel(
         "issuePanel",
         `Issue #${issue.number}: ${issue.title}`,
         vscode.ViewColumn.Beside,
         { 
             enableScripts: true,
+            retainContextWhenHidden: true,
             localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources'))]
         }
     );
@@ -96,8 +98,9 @@ function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, ag
     panel.webview.onDidReceiveMessage(
         async (message) => {
             if (message.command === "fixIssue") {
-                // Pass both the webview and agent response provider
-                await fixIssue(issue, panel.webview, agentResponseProvider);
+                await fixIssue(issue, panel.webview, agentResponseProvider, githubService, agentService);
+            } else {
+                console.log('❓ Unknown command:', message.command);
             }
         },
         undefined,
@@ -114,12 +117,12 @@ export async function fixIssue(
 ): Promise<void> {
     try {
         if (!githubService || !agentService) {
-            throw new Error('GitHub service or Agent service not initialized');
+            const errorMsg = 'GitHub service or Agent service not initialized';
+            console.error('❌ Error:', errorMsg);
+            throw new Error(errorMsg);
         }
-
         // Get GitHub credentials
-        const githubCredentials = await githubService.getCredentials();
-        
+        const githubCredentials = await githubService.getCredentials();        
         // Use the agent service to fix the issue
         const response = await agentService.fixIssue(issue, githubCredentials);
 

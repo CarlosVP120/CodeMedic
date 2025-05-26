@@ -8,10 +8,6 @@ import { AgentService } from "./services/agentService";
 import { registerIssueCommands } from "./commands/issueCommands";
 import { registerAgentCommands } from "./commands/agentCommands";
 import { ISSUES_VIEW_ID, AGENT_RESPONSES_VIEW_ID, CMD_REFRESH_ISSUES, CMD_AUTHENTICATE } from "./utils/constants";
-import axios from 'axios';
-import * as path from 'path';
-import { getIssueHtml } from "./utils/htmlTemplates";
-import { fixIssue } from "./commands/issueCommands";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -86,43 +82,6 @@ export function activate(context: vscode.ExtensionContext) {
       issueProvider.refresh();
     }
   });
-}
-
-function showIssuePanel(issue: any, context: vscode.ExtensionContext, agentResponseProvider: AgentResponseProvider) {
-  const panel = vscode.window.createWebviewPanel(
-    "issuePanel",
-    `Issue #${issue.number}: ${issue.title}`,
-    vscode.ViewColumn.Beside,
-    { 
-      enableScripts: true,
-      localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources'))]
-    }
-  );
-  
-  // Get the path to the logo image
-  const logoPath = vscode.Uri.file(
-    path.join(context.extensionPath, 'resources', 'logo.png')
-  );
-  
-  // Convert the URI to a string that the webview can use
-  const logoUri = panel.webview.asWebviewUri(logoPath);
-  
-  // Add fix button to the panel
-  panel.webview.html = getIssueHtml(issue, logoUri.toString());
-  
-  // Handle messages from the webview
-  panel.webview.onDidReceiveMessage(
-    async (message) => {
-      if (message.command === "fixIssue") {
-        // Pass both the webview and agent response provider
-        const githubService = new GitHubService(context);
-        const agentService = new AgentService();
-        await fixIssue(issue, panel.webview, agentResponseProvider, githubService, agentService);
-      }
-    },
-    undefined,
-    context.subscriptions
-  );
 }
 
 // This method is called when your extension is deactivated
