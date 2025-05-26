@@ -3,6 +3,7 @@
   "displayName": "CodeMedic",
   "description": "Manage and resolve GitHub issues directly within VSCode",
   "version": "0.0.1",
+  "icon": "resources/barraCodeMedic.png",
   "engines": {
     "vscode": "^1.99.0"
   },
@@ -46,6 +47,11 @@
         "command": "codemedic.showAgentResponse",
         "title": "Show Agent Response Details",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "codemedic.showAgentLogo",
+        "title": "CodeMedic Agent",
+        "icon": "./resources/logo.png"
       }
     ],
     "configuration": {
@@ -63,7 +69,7 @@
         {
           "id": "codemedic-sidebar",
           "title": "CodeMedic",
-          "icon": "$(bug)"
+          "icon": "./resources/barraCodeMedic.png"
         }
       ]
     },
@@ -87,9 +93,14 @@
           "group": "navigation"
         },
         {
+          "command": "codemedic.showAgentLogo",
+          "when": "view == codemedic-agent-responses",
+          "group": "navigation@0"
+        },
+        {
           "command": "codemedic.clearResponses",
           "when": "view == codemedic-agent-responses",
-          "group": "navigation"
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
