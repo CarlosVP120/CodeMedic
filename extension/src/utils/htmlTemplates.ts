@@ -495,7 +495,7 @@ export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
   `;
 }
 
-export function getAgentResponseHtml(title: string, response: any): string {
+export function getAgentResponseHtml(title: string, response: any, logoUrl?: string): string {
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -666,6 +666,7 @@ export function getAgentResponseHtml(title: string, response: any): string {
     <body>
       <div class="navbar">
         <div class="logo-container">
+          ${logoUrl ? `<img src="${logoUrl}" alt="CodeMedic Logo" style="width: 32px; height: 32px; object-fit: contain;">` : ''}
           <span class="app-name">CodeMedic</span>
         </div>
       </div>
