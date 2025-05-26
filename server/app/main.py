@@ -4,19 +4,16 @@ from app.routers.AgentRoutes import router
 
 app = FastAPI(title="CodeMedic API")
 
-app.include_router(router, prefix="/api")
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
 
-# orig_origins = [
-#     "http://localhost:4200",
-# ]
-#
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=orig_origins,  # List of allowed origins
-#     allow_credentials=True,
-#     allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
-#     allow_headers=["*"]  # Allow all headers
-# )
+app.include_router(router, prefix="/api")
 
 @app.get("/")
 async def root():
