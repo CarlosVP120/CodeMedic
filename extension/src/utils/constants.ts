@@ -2,10 +2,6 @@
 export const API_BASE_URL = 'http://localhost:8000';
 export const API_FIX_ISSUE_ENDPOINT = 'http://localhost:8000/api/fix/issue';
 
-// GitHub Token - Note: In production, this should be stored securely
-export const GITHUB_TOKEN = '';
-export const DEFAULT_REPOSITORY = 'Elcasvi/Code-Fixer-LLM-Agent';
-
 // View IDs
 export const ISSUES_VIEW_ID = 'codemedic-issues';
 export const AGENT_RESPONSES_VIEW_ID = 'codemedic-agent-responses';
