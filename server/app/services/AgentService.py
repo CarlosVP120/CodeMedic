@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from app.models.models import GitHubIssue, GitHubCredentials
-from server.app.services.StructuredAgent import StructuredAgent
+from app.services.StructuredAgent import StructuredAgent
 from typing import Generator, Dict, Any
 import json
 
