@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
+import { ParsedAgentResponse } from '../utils/agentResponseParser';
+import { StructuredAgentResponse } from '../utils/structuredAgentResponseParser';
 
 export interface AgentResponse {
-    result: 'processing' | 'complete' | 'error';
+    result: 'processing' | 'complete' | 'error' | 'partial';
     details: string;
     error?: string;
+    parsedData?: ParsedAgentResponse;
+    structuredData?: StructuredAgentResponse;
 }
 
 export class AgentResponseItem extends vscode.TreeItem {
