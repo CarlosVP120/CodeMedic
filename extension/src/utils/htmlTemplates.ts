@@ -1,5 +1,23 @@
 import { GitHubIssue } from '../models/issue';
 
+function convertMarkdownToHtml(text: string): string {
+  if (!text) return '';
+  
+  return text
+    // Convert **bold** to <strong>bold</strong>
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Convert *italic* to <em>italic</em>
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    // Convert [link text](url) to <a href="url">link text</a>
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+    // Convert line breaks
+    .replace(/\n/g, '<br>')
+    // Escape remaining HTML tags except the ones we created
+    .replace(/<(?!\/?(strong|em|a|br)\b)[^>]*>/g, (match) => {
+      return match.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    });
+}
+
 export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
   return `
     <!DOCTYPE html>
@@ -210,12 +228,12 @@ export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
           outline: none;
         }
         
-        .fix-button {
+        .fix-button-structured {
           background-color: var(--success-color);
           color: white;
         }
         
-        .fix-button:hover {
+        .fix-button-structured:hover {
           background-color: var(--success-hover);
         }
         
@@ -251,7 +269,34 @@ export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
           border-radius: var(--radius-md);
           padding: 1.25rem;
           font-size: 0.9375rem;
-          white-space: pre-wrap;
+          line-height: 1.6;
+        }
+        
+        .agent-response-content strong {
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+        
+        .agent-response-content b {
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+        
+        .agent-response-content em {
+          font-style: italic;
+          color: var(--text-secondary);
+        }
+        
+        .agent-response-content a {
+          color: var(--primary-color);
+          text-decoration: none;
+          border-bottom: 1px solid transparent;
+          transition: var(--transition);
+        }
+        
+        .agent-response-content a:hover {
+          color: var(--primary-dark);
+          border-bottom-color: var(--primary-color);
         }
         
         .agent-log {
@@ -347,9 +392,9 @@ export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
         </div>
         
         <div class="actions">
-          <button class="button fix-button" id="fix-button">
+          <button class="button fix-button-structured" id="fix-button-structured">
             <svg class="fix-button-icon" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
             </svg>
             Fix this issue with CodeMedic
           </button>
@@ -379,56 +424,60 @@ export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
       </div>
       
       <script>
-        // Test 1: JavaScript básico
-        try {
-          alert('🚀 TEST 1: JavaScript funcionando!');
-        } catch (e) {
-          console.error('Error en alert:', e);
-        }
+        // Get VS Code API
+        const vscode = acquireVsCodeApi();
         
-        // Test 2: Verificar vscode API
-        try {
-          var vscode = acquireVsCodeApi();
-          alert('📡 TEST 2: vscode API obtenido!');
-        } catch (e) {
-          alert('❌ ERROR: No se pudo obtener vscode API: ' + e.message);
-        }
-        
-        // Test 3: Función simple para configurar el botón
-        function configurarBoton() {
-          alert('🔧 TEST 3: Configurando botón...');
-          
-          var fixButton = document.getElementById('fix-button');
+        // Configure fix button
+        function setupFixButton() {
+          const fixButton = document.getElementById('fix-button-structured');
           
           if (!fixButton) {
-            alert('❌ ERROR: Botón no encontrado!');
+            console.error('Fix button not found');
             return;
           }
           
-          alert('✅ TEST 4: Botón encontrado!');
-          
-          // Listener simple
-          fixButton.onclick = function() {
-            alert('🎉 TEST 5: ¡Click detectado!');
-            
-            try {
-              vscode.postMessage({
-                command: 'fixIssue'
-              });
-              alert('📤 TEST 6: Mensaje enviado!');
-            } catch (e) {
-              alert('❌ ERROR enviando mensaje: ' + e.message);
+          // Add click listener
+          fixButton.addEventListener('click', function() {
+            // Show loading state
+            const loading = document.getElementById('loading');
+            if (loading) {
+              loading.classList.add('visible');
             }
-          };
-          
-          alert('✅ TEST 7: Listener configurado!');
+            
+            // Send message to extension
+            vscode.postMessage({
+              command: 'fixIssueStructured'
+            });
+          });
         }
         
-        // Ejecutar cuando el documento esté listo
+        // Handle messages from extension
+        window.addEventListener('message', function(event) {
+          const message = event.data;
+          
+          if (message.command === 'agentResponse') {
+            // Hide loading
+            const loading = document.getElementById('loading');
+            if (loading) {
+              loading.classList.remove('visible');
+            }
+            
+            // Show response
+            const responseSection = document.getElementById('agent-response');
+            const responseContent = document.getElementById('agent-response-content');
+            
+            if (responseSection && responseContent) {
+              responseContent.innerHTML = message.response.details || 'No response details available';
+              responseSection.classList.add('visible');
+            }
+          }
+        });
+        
+        // Initialize when DOM is ready
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', configurarBoton);
+          document.addEventListener('DOMContentLoaded', setupFixButton);
         } else {
-          configurarBoton();
+          setupFixButton();
         }
       </script>
     </body>
@@ -588,7 +637,34 @@ export function getAgentResponseHtml(title: string, response: any, logoUrl?: str
           padding: 1.25rem;
           border-radius: var(--radius-md);
           font-size: 0.9375rem;
-          white-space: pre-wrap;
+          line-height: 1.6;
+        }
+        
+        .content strong {
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+        
+        .content b {
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+        
+        .content em {
+          font-style: italic;
+          color: var(--text-secondary);
+        }
+        
+        .content a {
+          color: var(--primary-color);
+          text-decoration: none;
+          border-bottom: 1px solid transparent;
+          transition: var(--transition);
+        }
+        
+        .content a:hover {
+          color: var(--primary-dark);
+          border-bottom-color: var(--primary-color);
         }
         
         .code-block {
@@ -631,7 +707,7 @@ export function getAgentResponseHtml(title: string, response: any, logoUrl?: str
         </div>
         
         <div class="content-section">
-          <div class="content">${response.details}</div>
+          <div class="content">${convertMarkdownToHtml(response.details)}</div>
         </div>
       </div>
     </body>
