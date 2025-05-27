@@ -4,7 +4,6 @@ import * as vscode from "vscode";
 import { GitHubService } from "./services/githubService";
 import { IssueProvider } from "./providers/issueProvider";
 import { AgentResponseProvider } from "./providers/agentResponseProvider";
-import { AgentService } from "./services/agentService";
 import { registerIssueCommands } from "./commands/issueCommands";
 import { registerAgentCommands } from "./commands/agentCommands";
 import { ISSUES_VIEW_ID, AGENT_RESPONSES_VIEW_ID, CMD_REFRESH_ISSUES, CMD_AUTHENTICATE } from "./utils/constants";
@@ -18,7 +17,6 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Initialize services
   const githubService = new GitHubService(context);
-  const agentService = new AgentService();
   
   // Create providers
   const agentResponseProvider = new AgentResponseProvider();
@@ -56,7 +54,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
   
   // Register issue and agent commands
-  registerIssueCommands(context, issueProvider, agentResponseProvider, githubService, agentService);
+  registerIssueCommands(context, issueProvider, agentResponseProvider, githubService);
   registerAgentCommands(context, agentResponseProvider);
 
   // Verify GitHub repo on startup and refresh issues

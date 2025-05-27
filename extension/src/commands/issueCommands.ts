@@ -3,7 +3,7 @@ import * as path from 'path';
 import { GitHubIssue } from '../models/issue';
 import { getIssueHtml } from '../utils/htmlTemplates';
 import { AgentResponseProvider } from '../providers/agentResponseProvider';
-import { AgentService } from '../services/agentService';
+import { StructuredAgentService } from '../services/structuredAgentService';
 import { GitHubService } from '../services/githubService';
 import { ISSUES_VIEW_ID } from '../utils/constants';
 
@@ -11,8 +11,7 @@ export function registerIssueCommands(
     context: vscode.ExtensionContext,
     issueProvider: any,
     agentResponseProvider: AgentResponseProvider,
-    githubService: GitHubService,
-    agentService: AgentService
+    githubService: GitHubService
 ): void {
     // Command to show issue panel
     context.subscriptions.push(
@@ -34,7 +33,7 @@ export function registerIssueCommands(
                 }
                 if (issueItem.contextValue === "issue") {
                     console.log('🔧 Opening issue panel for issue:', issueItem.issue.number);
-                    showIssuePanel(issueItem.issue, context, agentResponseProvider, githubService, agentService);
+                    showIssuePanel(issueItem.issue, context, agentResponseProvider, githubService);
                 } else {
                     vscode.window.showErrorMessage("Please select a valid GitHub issue.");
                 }
@@ -42,36 +41,10 @@ export function registerIssueCommands(
         )
     );
 
-    // Command to fix an issue using the agent
-    context.subscriptions.push(
-        vscode.commands.registerCommand(
-            'codemedic.fixIssue',
-            async (issueItem) => {
-                if (!issueItem) {
-                    const treeView = vscode.window.createTreeView(ISSUES_VIEW_ID, {
-                        treeDataProvider: issueProvider
-                    });
-                    const selectedItem = treeView.selection[0];
-                    if (!selectedItem) {
-                        vscode.window.showErrorMessage(
-                            "No issue selected. Please select an issue first."
-                        );
-                        return;
-                    }
-                    issueItem = selectedItem;
-                }
-                
-                if (issueItem.contextValue === "issue") {
-                    await fixIssue(issueItem.issue, undefined, agentResponseProvider, githubService, agentService);
-                } else {
-                    vscode.window.showErrorMessage("Please select a valid GitHub issue.");
-                }
-            }
-        )
-    );
+
 }
 
-function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, agentResponseProvider: AgentResponseProvider, githubService: GitHubService, agentService: AgentService) {    
+function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, agentResponseProvider: AgentResponseProvider, githubService: GitHubService) {    
     const panel = vscode.window.createWebviewPanel(
         "issuePanel",
         `Issue #${issue.number}: ${issue.title}`,
@@ -97,8 +70,8 @@ function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, ag
     // Handle messages from the webview
     panel.webview.onDidReceiveMessage(
         async (message) => {
-            if (message.command === "fixIssue") {
-                await fixIssue(issue, panel.webview, agentResponseProvider, githubService, agentService);
+            if (message.command === "fixIssueStructured") {
+                await fixIssueStructured(issue, panel.webview, agentResponseProvider, githubService);
             } else {
                 console.log('❓ Unknown command:', message.command);
             }
@@ -108,23 +81,27 @@ function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, ag
     );
 }
 
-export async function fixIssue(
+export async function fixIssueStructured(
     issue: GitHubIssue, 
     webview?: vscode.Webview, 
     agentResponseProvider?: AgentResponseProvider,
-    githubService?: GitHubService,
-    agentService?: AgentService
+    githubService?: GitHubService
 ): Promise<void> {
     try {
-        if (!githubService || !agentService) {
-            const errorMsg = 'GitHub service or Agent service not initialized';
+        if (!githubService) {
+            const errorMsg = 'GitHub service not initialized';
             console.error('❌ Error:', errorMsg);
             throw new Error(errorMsg);
         }
+        
         // Get GitHub credentials
-        const githubCredentials = await githubService.getCredentials();        
-        // Use the agent service to fix the issue
-        const response = await agentService.fixIssue(issue, githubCredentials);
+        const githubCredentials = await githubService.getCredentials();
+        
+        // Create structured agent service
+        const structuredAgentService = new StructuredAgentService();
+        
+        // Use the structured agent service to fix the issue
+        const response = await structuredAgentService.fixIssue(issue, githubCredentials);
 
         // If webview is provided, send the response to it
         if (webview) {
@@ -139,6 +116,6 @@ export async function fixIssue(
             agentResponseProvider.addResponse(issue, response);
         }
     } catch (error) {
-        vscode.window.showErrorMessage(`Error fixing issue: ${error}`);
+        vscode.window.showErrorMessage(`Error fixing issue with structured agent: ${error}`);
     }
 } 
