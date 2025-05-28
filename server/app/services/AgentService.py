@@ -7,7 +7,6 @@ import json
 
 class AgentService:
     def __init__(self, github_credentials: GitHubCredentials, issue_data: GitHubIssue):
-        print("Inside Agent Controller")
         self.issue_data = issue_data
         self.github_credentials = github_credentials
     

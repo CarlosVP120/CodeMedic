@@ -3,7 +3,7 @@ from typing import List, Any
 from github import Github
 from github.GithubException import GithubException
 
-from app.models.models import GitHubCredentials, GitHubIssue
+from models.models import GitHubCredentials, GitHubIssue
 
 
 def get_github_issues(github_credentials:GitHubCredentials) -> List[GitHubIssue]:
@@ -53,6 +53,7 @@ def get_github_issue(issues:List[GitHubIssue],issue_number:int)-> GitHubIssue | 
 """
 ===========================================================================================================
 """
+
 def get_repository_file_names(github_token: str, repository: str) -> List[str]:
     """
     Returns the list of file names from the root of the given GitHub repository.
