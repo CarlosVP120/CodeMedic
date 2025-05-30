@@ -35,11 +35,14 @@ class FixedCodeIssue(BaseModel):
     fixed_code: str
 
 
-class PlanExecute(TypedDict):
+class PlanExecute(TypedDict, total=False):  # `total=False` makes all fields optional
     input: str
     plan: List[str]
     past_steps: List[Tuple[str, str]]
     github_credentials: Tuple[str, str]
+    fixed_code: str
+    file_path: str
+    branch_name: str
     response: str
 
 
@@ -61,43 +64,38 @@ class PlanExecuteAgent:
         self.github_credentials = github_credentials
         self.endpoint_gpt4 = os.getenv("AZURE_OPENAI_ENDPOINT_GPT4")
         model_id = "TheCasvi/Qwen3-1.7B-35KD-adapter"
-        self.fine_tune_Qwen3_llm = HuggingFacePipeline.from_model_id(
-            model_id=model_id,
-            task="text-generation",
-            pipeline_kwargs={
-                "max_new_tokens": 2048,
-                "do_sample": False,
-                "repetition_penalty": 1.03,
-            }
-        )
+        # self.fine_tune_Qwen3_llm = HuggingFacePipeline.from_model_id(
+        #     model_id=model_id,
+        #     task="text-generation",
+        #     pipeline_kwargs={
+        #         "max_new_tokens": 2048,
+        #         "do_sample": False,
+        #         "repetition_penalty": 1.03,
+        #     }
+        # )
         #self.structured_llm = fine_tune_Qwen3_llm.with_structured_output(FixedCodeIssue)
 
     async def run_plan_and_execute(self,github_issue):
         #Define diagnosis and action tools
         @tool
-        def get_repository_file_names(github_token: str, repository: str) -> List[str]:
+        def get_repository_file_names(github_token: str, repository: str) -> str:
             """
             Returns the list of file names from the root of the given GitHub repository.
             """
             try:
-                #print(f"\n🔍 Intentando acceder al repositorio: {repository}")
                 github_client = Github(github_token)
                 repo = github_client.get_repo(repository)
-                #print("✓ Repositorio encontrado")
+                contents = repo.get_contents("")
+                files_list = []
+                while contents:
+                    file_content = contents.pop(0)
+                    if file_content.type == "dir":
+                        contents.extend(repo.get_contents(file_content.path))
+                    else:
+                        files_list.append(file_content.name)
+                return f"📄 Repository contains the following files: {', '.join(files_list)}"
             except Exception as e:
-                print(f"❌ Error al obtener issues: {str(e)}")
-                return []
-
-            contents = repo.get_contents("")
-            files_list = []
-            while contents:
-                file_content = contents.pop(0)
-                if file_content.type == "dir":
-                    contents.extend(repo.get_contents(file_content.path))
-                else:
-                    files_list.append(file_content.name)
-                    #print("File name: ", file_content.name)
-            return files_list
+                return f"❌ Error retrieving files: {str(e)}"
 
         @tool
         def get_repository_file_content(github_token: str, repository: str, file_name: str) -> str:
@@ -105,66 +103,32 @@ class PlanExecuteAgent:
             Retrieves the content of a specific file from the GitHub repository.
             """
             try:
-                #print(f"\n🔍 Intentando acceder al repositorio: {repository}")
                 github_client = Github(github_token)
                 repo = github_client.get_repo(repository)
-                #print("✓ Repositorio encontrado")
-            except Exception as e:
-                return f"❌ Error al conectar con el repositorio: {str(e)}"
-
-            try:
-                #print("Trying to retrieve file content")
                 content = repo.get_contents(file_name)
-                #print("content file: ", content)
-                return content.decoded_content.decode()
+                return f"📄 The file `{file_name}` contains:\n\n```python\n{content.decoded_content.decode()}\n```"
             except Exception as e:
-                return f"Error al obtener el contenido del archivo: {str(e)}"
+                return f"❌ Error getting file content: {str(e)}"
 
         @tool
-        def create_branch(
-                github_token: str,
-                repository: str,
-                base_branch: str,
-                new_branch: str
-        ) -> str:
+        def create_branch(github_token: str, repository: str, base_branch: str, new_branch: str) -> str:
             """
             Creates a new branch from the specified base branch.
-
-            Args:
-                github_token: GitHub access token.
-                repository: Repository name in 'owner/repo' format.
-                base_branch: The branch to branch off from (e.g., 'main').
-                new_branch: The name of the new branch to create.
-
-            Returns:
-                The name of the created branch or an error message.
             """
             try:
-                print(f"🌿 Creating branch '{new_branch}' from '{base_branch}' in repo '{repository}'")
-
                 github_client = Github(github_token)
                 repo = github_client.get_repo(repository)
-
-                # Get the commit SHA of the base branch
                 base_ref = repo.get_git_ref(f"heads/{base_branch}")
                 base_sha = base_ref.object.sha
-
-                # Create new branch ref
                 new_ref = f"refs/heads/{new_branch}"
                 repo.create_git_ref(ref=new_ref, sha=base_sha)
-
-                print(f"✅ Branch '{new_branch}' created")
-                return f"Branch '{new_branch}' created successfully"
-
+                return f"✅ Branch `{new_branch}` created from `{base_branch}` in `{repository}`"
             except GithubException as e:
                 if e.status == 422:
-                    return f"⚠️ Branch '{new_branch}' already exists."
-                else:
-                    print(f"❌ GitHub Exception: {e.data}")
-                    return f"❌ GitHub error: {e.data.get('message', str(e))}"
+                    return f"⚠️ Branch `{new_branch}` already exists."
+                return f"❌ GitHub error: {e.data.get('message', str(e))}"
             except Exception as e:
-                print(f"❌ Error: {str(e)}")
-                return f"❌ Error: {str(e)}"
+                return f"❌ Error creating branch: {str(e)}"
 
         @tool
         def update_file_in_branch(
@@ -177,27 +141,13 @@ class PlanExecuteAgent:
         ) -> str:
             """
             Updates a file in the specified GitHub branch.
-
-            Args:
-                github_token: GitHub token for authentication.
-                repository: Repo name in 'owner/repo' format.
-                file_path: Path to the file to update.
-                new_content: New content for the file (as a string).
-                commit_message: Commit message for the change.
-                branch: Branch name to commit to.
-
-            Returns:
-                Status message indicating success or error.
             """
             try:
                 github_client = Github(github_token)
                 repo = github_client.get_repo(repository)
-
-                # Get the current file SHA (required to update the file)
                 contents = repo.get_contents(file_path, ref=branch)
                 current_sha = contents.sha
 
-                # Commit the updated content
                 repo.update_file(
                     path=file_path,
                     message=commit_message,
@@ -205,11 +155,9 @@ class PlanExecuteAgent:
                     sha=current_sha,
                     branch=branch
                 )
-
-                return f"✅ File '{file_path}' updated on branch '{branch}'"
+                return f"✅ File `{file_path}` updated on branch `{branch}` with commit message: '{commit_message}'"
             except Exception as e:
-                print(f"❌ Error updating file: {str(e)}")
-                return f"❌ Error: {str(e)}"
+                return f"❌ Error updating file: {str(e)}"
 
         @tool
         def create_pull_request(
@@ -219,18 +167,11 @@ class PlanExecuteAgent:
                 body: str,
                 head_branch: str,
                 base_branch: str
-        ) -> Any:
+        ) -> str:
             """
             Creates a pull request with the given data.
             """
             try:
-                print("📦 inside create_pull_request")
-                print(repository)
-                print(title)
-                print(body)
-                print(head_branch)
-                print(base_branch)
-
                 github_client = Github(github_token)
                 repo = github_client.get_repo(repository)
                 pull_request = repo.create_pull(
@@ -239,15 +180,25 @@ class PlanExecuteAgent:
                     head=head_branch,
                     base=base_branch
                 )
-                print(f"✅ Pull request creado: {pull_request.html_url}")
-                return pull_request.html_url
+                return f"✅ Pull request created: {pull_request.html_url}"
             except Exception as e:
-                print(f"❌ Error al crear el pull request: {str(e)}")
-                return str(e)
+                return f"❌ Error creating pull request: {str(e)}"
 
         @tool
-        def fix_code_issues(buggy_code:str)->dict:
-            """Takes the code with bugs, Fixes the issues in the code and returns the corrected code"""
+        def fix_code_issues(buggy_code: str) -> dict:
+            """
+                Analyzes the given Python code for syntax or logical errors and returns a corrected version.
+
+                This tool uses a fine-tuned language model to automatically fix issues in the provided code snippet.
+                It returns the result as a JSON dictionary in the format: { "fixed_code": "..." }.
+
+                Args:
+                    buggy_code (str): A Python code snippet that contains one or more errors.
+
+                Returns:
+                    dict: A dictionary containing the corrected version of the code. If the model fails to produce valid JSON,
+                          an error message is included in the output.
+                """
             print("inside fix_code_issues...")
             llm_test = AzureChatOpenAI(
                 azure_endpoint=self.endpoint_gpt4,
@@ -264,17 +215,11 @@ class PlanExecuteAgent:
 
                Code:
                {buggy_code}
-               """
-            print("prompt: ",prompt)
-            #result = self.fine_tune_Qwen3_llm.invoke([{"role": "user", "content": prompt}])
+            """
+            print("prompt: ", prompt)
             result = llm_test.with_structured_output(FixedCodeIssue).invoke([{"role": "user", "content": prompt}])
-            print("fine_tuned mode result: ",result)
+            print("fine_tuned mode result: ", result)
             return result
-            # try:
-            #     print("json result: ",json.loads(result))
-            #     return json.loads(result)
-            # except json.JSONDecodeError:
-            #     return {"error": "Invalid JSON output", "raw_output": result}
 
 
         #set up tools
@@ -308,11 +253,10 @@ class PlanExecuteAgent:
             For the given GitHub issue, create a step-by-step solution plan including:
             Use get_repo_files() to understand repository structure
             Use get_file_content() to read relevant files
-            Use create_new_branch() to create a new branch
+            Use create_new_branch() to create a new branch where the fix issue will be uploaded
             Use fix_code_issues() to solve the issues in the code
-            Use update_file() to modify files on the new branch
-            Use create_pr() to create a pull request,
-            followed by creating the pull request as the final step.
+            Use update_file() to modify files with the solved code issues on the new branch
+            Use create_pr() to create a pull request with the github issue
             If you don't create a PR, the fix is incomplete."""),
 
          ("placeholder", "{messages}"),
@@ -370,11 +314,12 @@ class PlanExecuteAgent:
                 #Otherwise we continue with the new plan
                 return {"plan":output.action.steps}
 
-        def should_end(state:PlanExecute):
-            if "response" in state and state["response"]:
+        def should_end(state: PlanExecute):
+            if not state.get("plan"):
                 return END
-            else:
-                return "agent"
+            if state.get("response"):
+                return END
+            return "agent"
 
 
         # Build the workflow
@@ -389,7 +334,7 @@ class PlanExecuteAgent:
         workflow.add_conditional_edges("replan", should_end, ["agent", END])
         # Compile the workflow into executable application
         app = workflow.compile()
-        config = {"recursion_limit": 5}
+        config = {"recursion_limit": 10}
         # Function to run the Plan-Execute agent
 
         #Input from the user
@@ -411,7 +356,7 @@ class PlanExecuteAgent:
 #Run the async function
 if __name__=="__main__":
 
-    github_credentials = GitHubCredentials(token="<your_token>",
+    github_credentials = GitHubCredentials(token="token",
                                            repository_name="Elcasvi/Code-Fixer-LLM-Agent")
     issue_data = IssueData(number=2, title="SyntaxError: invalid syntax", body="""I'm running missing_colon.py as follows:
     division(23, 0)

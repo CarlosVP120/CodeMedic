@@ -9,4 +9,6 @@ python-dotenv
 PyGithub
 langchain-huggingface
 huggingface_hub[hf_xet]
+peft
+unsloth
 #pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
