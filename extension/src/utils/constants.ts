@@ -1,6 +1,6 @@
-// API Endpoints - Modal Deployment
-export const API_BASE_URL = 'https://gerardosanchezz--codemedic-api.modal.run';
-export const API_FIX_ISSUE_STRUCTURED_ENDPOINT = 'https://gerardosanchezz--codemedic-api.modal.run';
+// API Endpoints - Modal Deployment con FastAPI completa
+export const API_BASE_URL = 'https://gerardosanchezz--codemedic-server-fastapi-app.modal.run';
+export const API_FIX_ISSUE_STRUCTURED_ENDPOINT = 'https://gerardosanchezz--codemedic-server-fastapi-app.modal.run';
 
 // View IDs
 export const ISSUES_VIEW_ID = 'codemedic-issues';

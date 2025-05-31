@@ -25,7 +25,6 @@ class ReactAgent:
         if not hf_token:
             raise ValueError("HuggingFace token not found in environment variables")
         
-        print(f"ReactAgent using HuggingFace token: {hf_token[:10]}...")
 
         # Create base LLM with authentication
         base_llm = HuggingFaceEndpoint(
