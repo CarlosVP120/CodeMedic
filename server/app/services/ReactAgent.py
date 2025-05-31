@@ -20,7 +20,14 @@ class ReactAgent:
         # set up tools
         tools = [get_repository_file_names, get_repository_file_content, fix_code_issues, create_branch,update_file_in_branch, create_pull_request]
 
-        # Create base LLM
+        # Get HuggingFace token from environment
+        hf_token = os.getenv("HUGGINGFACE_HUB_TOKEN")
+        if not hf_token:
+            raise ValueError("HuggingFace token not found in environment variables")
+        
+        print(f"ReactAgent using HuggingFace token: {hf_token[:10]}...")
+
+        # Create base LLM with authentication
         base_llm = HuggingFaceEndpoint(
             model="Qwen/Qwen3-4B",
             task="text-generation",
@@ -28,6 +35,7 @@ class ReactAgent:
             do_sample=False,
             repetition_penalty=1.03,
             temperature=0.1,  # Lower temperature for more consistent behavior
+            huggingfacehub_api_token=hf_token  # Add the API token
         )
         
         # Wrap it with ChatHuggingFace for tool support

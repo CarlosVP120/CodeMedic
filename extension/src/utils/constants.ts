@@ -1,6 +1,6 @@
-// API Endpoints
-export const API_BASE_URL = 'http://localhost:8000';
-export const API_FIX_ISSUE_STRUCTURED_ENDPOINT = 'http://localhost:8000/api/fix/issue/structured';
+// API Endpoints - Modal Deployment
+export const API_BASE_URL = 'https://gerardosanchezz--codemedic-api.modal.run';
+export const API_FIX_ISSUE_STRUCTURED_ENDPOINT = 'https://gerardosanchezz--codemedic-api.modal.run';
 
 // View IDs
 export const ISSUES_VIEW_ID = 'codemedic-issues';
