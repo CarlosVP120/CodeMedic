@@ -367,12 +367,50 @@ curl -X POST https://gerardosanchezz--codemedic-api.modal.run \
 - ✅ Panel CodeMedic: Muestra mensajes y resumen del ReactAgent
 - ✅ Notificación final: "Issue #X has been processed by the agent."
 
+### 14. Probar Documentación Interactiva de FastAPI
+
+FastAPI automáticamente genera documentación interactiva accesible en `/docs`:
+
+**URL**: https://gerardosanchezz--codemedic-api.modal.run/docs
+
+Esta documentación incluye:
+- ✅ **Interfaz Swagger UI** para probar la API
+- ✅ **Esquemas de request/response** automáticos  
+- ✅ **Pruebas en vivo** desde el navegador
+- ✅ **Documentación de modelos** Pydantic
+
+**Cómo usar**:
+1. Abrir la URL en tu navegador
+2. Expandir el endpoint `POST /`
+3. Hacer clic en "Try it out"
+4. Completar el JSON de ejemplo
+5. Ejecutar y ver la respuesta
+
+**Ejemplo de JSON para probar**:
+```json
+{
+  "github_credentials": {
+    "token": "tu_github_token_real",
+    "repository_name": "tu_repositorio"
+  },
+  "issue_data": {
+    "number": 1,
+    "title": "Bug in authentication",
+    "body": "User authentication is failing",
+    "state": "open",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
 ## 📊 Monitoreo y Costos
 
 ### URLs Importantes:
 - **Dashboard**: https://modal.com/apps/gerardosanchezz/main/deployed/codemedic-server
 - **Endpoint Principal**: https://gerardosanchezz--codemedic-api.modal.run
 - **Health Check**: https://gerardosanchezz--health-check.modal.run
+- **Documentación API**: https://gerardosanchezz--codemedic-api.modal.run/docs
 
 ### Costos por GPU (por segundo):
 - **L4**: $0.000222/sec (~$0.80/hora)
@@ -481,5 +519,6 @@ Para replicar este setup desde cero:
 8. Corregir `structuredAgentService.ts` para manejar `responseData.data`
 9. `npm run compile` en la extensión
 10. Probar en VS Code
+11. **Bonus**: Visitar `https://tu-usuario--codemedic-api.modal.run/docs` para probar la API interactivamente
 
 ¡Listo! 🎉 
