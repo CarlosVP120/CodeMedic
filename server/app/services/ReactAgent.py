@@ -1,9 +1,11 @@
-from langchain_openai import AzureChatOpenAI
+# from langchain_openai import AzureChatOpenAI
+from langchain_huggingface import HuggingFaceEndpoint, HuggingFacePipeline, ChatHuggingFace
 from langgraph.prebuilt import create_react_agent
 from dotenv import load_dotenv
 import os
 
 from app.models.models import GitHubIssue, GitHubCredentials,  FinalAgentOutput
+from app.models.agent_response import AgentResponse
 from app.services.tools.tools import get_repository_file_names, get_repository_file_content, fix_code_issues, \
     create_branch, update_file_in_branch, create_pull_request
 
@@ -12,28 +14,45 @@ class ReactAgent:
     def __init__(self, github_credentials:GitHubCredentials):
         load_dotenv(dotenv_path=".env")
         self.github_credentials = github_credentials
-        self.endpoint_gpt4 = os.getenv("AZURE_OPENAI_ENDPOINT_GPT4")
 
     def run(self, github_issue: GitHubIssue):
 
         # set up tools
         tools = [get_repository_file_names, get_repository_file_content, fix_code_issues, create_branch,update_file_in_branch, create_pull_request]
 
-        llm = AzureChatOpenAI(
-            azure_endpoint=self.endpoint_gpt4,
-            azure_deployment="gpt-4o",
-            api_version="2025-01-01-preview",
-            temperature=0,
-            max_tokens=1000,
-            timeout=None,
-            max_retries=2,
+        # Create base LLM
+        base_llm = HuggingFaceEndpoint(
+            model="Qwen/Qwen3-4B",
+            task="text-generation",
+            max_new_tokens=1000,  # Increased token limit
+            do_sample=False,
+            repetition_penalty=1.03,
+            temperature=0.1,  # Lower temperature for more consistent behavior
         )
+        
+        # Wrap it with ChatHuggingFace for tool support
+        llm = ChatHuggingFace(llm=base_llm)
 
         agent_graph = create_react_agent(model=llm, tools=tools)
 
         # Build messages input
-        user_message = f"""Fix the following GitHub issue:\n{github_issue.model_dump_json(indent=2)}\n
-        Use these credentials if needed:\n{self.github_credentials.model_dump_json(indent=2)}"""
+        user_message = f"""You are a GitHub issue assistant. Your task is to analyze and fix the following GitHub issue.
+
+ISSUE DETAILS:
+{github_issue.model_dump_json(indent=2)}
+
+GITHUB CREDENTIALS:
+{self.github_credentials.model_dump_json(indent=2)}
+
+INSTRUCTIONS:
+1. First, examine the repository structure using get_repository_file_names
+2. Analyze the issue description and identify the problem
+3. Look at relevant files using get_repository_file_content
+4. Create a solution plan
+5. If code changes are needed, create a branch, update files, and create a pull request
+6. Provide a clear summary of what was done
+
+Focus only on the GitHub issue provided. Do not discuss other topics or provide general explanations about tools or libraries."""
         inputs = {"messages": [("user", user_message)]}
 
         # Configure with a thread id

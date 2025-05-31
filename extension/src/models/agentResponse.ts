@@ -7,7 +7,9 @@ export interface AgentResponse {
     details: string;
     error?: string;
     parsedData?: ParsedAgentResponse;
-    structuredData?: StructuredAgentResponse;
+    structuredData?: StructuredAgentResponse | any;
+    agentMessages?: string[];
+    agentSummary?: string;
 }
 
 export class AgentResponseItem extends vscode.TreeItem {

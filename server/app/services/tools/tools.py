@@ -17,15 +17,33 @@ def get_repository_file_names(github_token: str, repository: str) -> str:
         repo = github_client.get_repo(repository)
         contents = repo.get_contents("")
         files_list = []
+        dirs_list = []
+        
         while contents:
             file_content = contents.pop(0)
             if file_content.type == "dir":
+                dirs_list.append(file_content.path)
                 contents.extend(repo.get_contents(file_content.path))
             else:
-                files_list.append(file_content.name)
-        return f"📄 Repository contains the following files: {', '.join(files_list)}"
+                files_list.append(file_content.path)
+        
+        result = f"📁 Repository `{repository}` structure:\n\n"
+        
+        if dirs_list:
+            result += "📂 Directories:\n"
+            for dir_name in sorted(dirs_list):
+                result += f"  - {dir_name}/\n"
+            result += "\n"
+        
+        if files_list:
+            result += "📄 Files:\n"
+            for file_name in sorted(files_list):
+                result += f"  - {file_name}\n"
+        
+        return result
+        
     except Exception as e:
-        return f"❌ Error retrieving files: {str(e)}"
+        return f"❌ Error retrieving repository structure: {str(e)}"
 
 @tool
 def get_repository_file_content(github_token: str, repository: str, file_name: str) -> str:
@@ -35,10 +53,23 @@ def get_repository_file_content(github_token: str, repository: str, file_name: s
     try:
         github_client = Github(github_token)
         repo = github_client.get_repo(repository)
+        
+        # Try to get the file content
         content = repo.get_contents(file_name)
-        return f"📄 The file `{file_name}` contains:\n\n```python\n{content.decoded_content.decode()}\n```"
+        
+        # Check if it's a file (not a directory)
+        if content.type == "file":
+            decoded_content = content.decoded_content.decode('utf-8')
+            return f"📄 The file `{file_name}` contains:\n\n```\n{decoded_content}\n```"
+        else:
+            return f"❌ `{file_name}` is a directory, not a file. Use get_repository_file_names to list contents."
+            
     except Exception as e:
-        return f"❌ Error getting file content: {str(e)}"
+        error_msg = str(e)
+        if "404" in error_msg:
+            return f"❌ File `{file_name}` not found in repository `{repository}`. Please check the file path and try again. Use get_repository_file_names to see available files."
+        else:
+            return f"❌ Error getting file content: {error_msg}"
 
 @tool
 def create_branch(github_token: str, repository: str, base_branch: str, new_branch: str) -> str:
@@ -142,7 +173,7 @@ def fix_code_issues(buggy_code: str) -> dict:
     # )
     print("Generating code...")
 
-    model_id = "TheCasvi/Qwen3-1.7B-35KD-adapter"
+    model_id = "TheCasvi/Qwen3-4B-CodeMedic-adapter"
     llm = HuggingFacePipeline.from_model_id(
         model_id=model_id,
         task="text-generation",

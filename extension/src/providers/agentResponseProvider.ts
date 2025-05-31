@@ -1,23 +1,6 @@
 import * as vscode from 'vscode';
 import { GitHubIssue } from '../models/issue';
-import { AgentResponse } from '../models/agentResponse';
-
-export class AgentResponseItem extends vscode.TreeItem {
-    constructor(
-        public readonly label: string,
-        public readonly response: AgentResponse,
-        public readonly issue: GitHubIssue
-    ) {
-        super(label, vscode.TreeItemCollapsibleState.None);
-        this.tooltip = this.response.details;
-        this.contextValue = 'agentResponse';
-        this.command = {
-            command: 'codemedic.showAgentResponse',
-            title: 'Show Agent Response',
-            arguments: [this]
-        };
-    }
-}
+import { AgentResponse, AgentResponseItem } from '../models/agentResponse';
 
 export class AgentResponseProvider implements vscode.TreeDataProvider<AgentResponseItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<AgentResponseItem | undefined | null | void> = new vscode.EventEmitter<AgentResponseItem | undefined | null | void>();
@@ -40,7 +23,24 @@ export class AgentResponseProvider implements vscode.TreeDataProvider<AgentRespo
     
     addResponse(issue: GitHubIssue, response: AgentResponse): void {
         const label = `Issue #${issue.number}: ${issue.title}`;
-        const item = new AgentResponseItem(label, response, issue);
+        const detailsText = response.result;
+        const agentOutput = response.details;
+        
+        const item = new AgentResponseItem(
+            label,
+            response,
+            detailsText,
+            agentOutput,
+            vscode.TreeItemCollapsibleState.None
+        );
+        
+        // Set the command for showing the response
+        item.command = {
+            command: 'codemedic.showAgentResponse',
+            title: 'Show Agent Response',
+            arguments: [item]
+        };
+        
         this.responses.push(item);
         this._onDidChangeTreeData.fire();
     }

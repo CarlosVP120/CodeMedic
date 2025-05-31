@@ -486,6 +486,15 @@ export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
 }
 
 export function getAgentResponseHtml(title: string, response: any, logoUrl?: string): string {
+  // Extract data for dropdowns
+  const summary = response.agentSummary || 'No summary available';
+  const messages = response.agentMessages || [];
+  
+  // Filter out step 1 (prompt) and empty messages
+  const filteredMessages = messages.filter((msg: string, index: number) => {
+    return index > 0 && msg && msg.trim().length > 0;
+  });
+
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -627,57 +636,95 @@ export function getAgentResponseHtml(title: string, response: any, logoUrl?: str
           background-color: #fef3c7;
           color: #92400e;
         }
-        
-        .content-section {
-          margin-top: 2rem;
+
+        /* Dropdown Styles */
+        .section {
+          margin-bottom: 1.5rem;
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-md);
+          overflow: hidden;
         }
         
-        .content {
+        .section-header {
           background-color: var(--bg-accent);
+          padding: 1rem 1.25rem;
+          cursor: pointer;
+          display: flex;
+          justify-content: between;
+          align-items: center;
+          transition: var(--transition);
+        }
+        
+        .section-header:hover {
+          background-color: #e5e7eb;
+        }
+        
+        .section-title {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin: 0;
+          flex-grow: 1;
+        }
+        
+        .dropdown-arrow {
+          width: 20px;
+          height: 20px;
+          transition: transform 0.2s ease;
+          color: var(--text-secondary);
+        }
+        
+        .dropdown-arrow.expanded {
+          transform: rotate(90deg);
+        }
+        
+        .section-content {
+          display: none;
           padding: 1.25rem;
-          border-radius: var(--radius-md);
+          background-color: var(--bg-primary);
+          border-top: 1px solid var(--border-color);
           font-size: 0.9375rem;
           line-height: 1.6;
         }
         
-        .content strong {
-          font-weight: 600;
+        .section-content.expanded {
+          display: block;
+        }
+        
+        .summary-content {
           color: var(--text-primary);
+          white-space: pre-wrap;
         }
         
-        .content b {
+        .message-item {
+          padding: 0.75rem;
+          margin-bottom: 0.75rem;
+          background-color: var(--bg-accent);
+          border-radius: var(--radius-sm);
+          border-left: 3px solid var(--primary-color);
+        }
+        
+        .message-item:last-child {
+          margin-bottom: 0;
+        }
+        
+        .message-title {
           font-weight: 600;
-          color: var(--text-primary);
-        }
-        
-        .content em {
-          font-style: italic;
-          color: var(--text-secondary);
-        }
-        
-        .content a {
           color: var(--primary-color);
-          text-decoration: none;
-          border-bottom: 1px solid transparent;
-          transition: var(--transition);
+          margin-bottom: 0.5rem;
         }
         
-        .content a:hover {
-          color: var(--primary-dark);
-          border-bottom-color: var(--primary-color);
+        .message-content {
+          color: var(--text-primary);
+          white-space: pre-wrap;
+          word-wrap: break-word;
         }
         
-        .code-block {
-          background-color: #1e1e1e;
-          color: #e6e6e6;
-          font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
-          font-size: 0.875rem;
-          padding: 1.25rem;
-          border-radius: var(--radius-md);
-          margin-top: 1.5rem;
-          margin-bottom: 1.5rem;
-          overflow-x: auto;
-          white-space: pre;
+        .no-messages {
+          color: var(--text-muted);
+          font-style: italic;
+          text-align: center;
+          padding: 2rem;
         }
       </style>
     </head>
@@ -706,10 +753,51 @@ export function getAgentResponseHtml(title: string, response: any, logoUrl?: str
           </div>
         </div>
         
-        <div class="content-section">
-          <div class="content">${convertMarkdownToHtml(response.details)}</div>
+        <!-- Summary Section -->
+        <div class="section">
+          <div class="section-header" onclick="toggleSection('summary')">
+            <h3 class="section-title">📋 Summary</h3>
+            <span class="dropdown-arrow" id="summary-arrow">▶</span>
+          </div>
+          <div class="section-content" id="summary-content">
+            <div class="summary-content">${summary}</div>
+          </div>
+        </div>
+        
+        <!-- Agent Messages Section -->
+        <div class="section">
+          <div class="section-header" onclick="toggleSection('messages')">
+            <h3 class="section-title">🤖 Agent Messages (${filteredMessages.length} steps)</h3>
+            <span class="dropdown-arrow" id="messages-arrow">▶</span>
+          </div>
+          <div class="section-content" id="messages-content">
+            ${filteredMessages.length > 0 ? 
+              filteredMessages.map((message: string, index: number) => `
+                <div class="message-item">
+                  <div class="message-title">Step ${index + 2}</div>
+                  <div class="message-content">${message}</div>
+                </div>
+              `).join('') : 
+              '<div class="no-messages">No detailed steps available</div>'
+            }
+          </div>
         </div>
       </div>
+      
+      <script>
+        function toggleSection(sectionId) {
+          const content = document.getElementById(sectionId + '-content');
+          const arrow = document.getElementById(sectionId + '-arrow');
+          
+          if (content.classList.contains('expanded')) {
+            content.classList.remove('expanded');
+            arrow.classList.remove('expanded');
+          } else {
+            content.classList.add('expanded');
+            arrow.classList.add('expanded');
+          }
+        }
+      </script>
     </body>
     </html>
   `;

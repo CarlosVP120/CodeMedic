@@ -37,86 +37,42 @@ export class StructuredAgentService {
                 progress.report({ message: "Connecting to CodeMedic agent..." });
 
                 try {
-                    // Send the issue to the structured API with streaming response
+                    // Send the issue to the structured API with regular JSON response
                     const response = await axios.post(API_FIX_ISSUE_STRUCTURED_ENDPOINT, fixCodeRequest, {
-                        responseType: 'stream',
                         timeout: 300000, // 5 minutes timeout
                         headers: {
-                            'Accept': 'text/event-stream',
-                            'Cache-Control': 'no-cache'
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
                         }
                     });
 
-                    let finalResponse: StructuredAgentResponse | null = null;
-                    const stepUpdates: string[] = [];
-                    
-                    // Handle Server-Sent Events streaming response
-                    for await (const chunk of response.data) {
-                        const text = chunk.toString();
-                        
-                        // Parse SSE format (data: {...})
-                        const lines = text.split('\n');
-                        for (const line of lines) {
-                            if (line.startsWith('data: ')) {
-                                const jsonData = line.substring(6); // Remove 'data: ' prefix
-                                
-                                if (jsonData.trim()) {
-                                    const parsedResponse = StructuredAgentResponseParser.parseStreamedResponse(jsonData);
-                                    
-                                    if (parsedResponse) {
-                                        if (parsedResponse.type === 'status') {
-                                            // Handle step updates
-                                            const stepData = parsedResponse.data as AgentStepResponse;
-                                            const stepMessage = StructuredAgentResponseParser.formatStepResponse(stepData);
-                                            stepUpdates.push(stepMessage);
-                                            
-                                            progress.report({ 
-                                                message: stepData.step,
-                                                increment: 10
-                                            });
-                                            
-                                            console.log('Step update:', stepMessage);
-                                            
-                                        } else if (parsedResponse.type === 'final_response') {
-                                            // Handle final response
-                                            finalResponse = parsedResponse.data as StructuredAgentResponse;
-                                            console.log('Final structured response received:', finalResponse);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     progress.report({ message: "Processing completed", increment: 100 });
 
+                    // Handle the response data directly
+                    const responseData = response.data;
+                    console.log('Response received:', responseData);
+
                     // Show success message
-                    const statusMessage = finalResponse?.status === 'success' ? 'successfully processed' :
-                                         finalResponse?.status === 'error' ? 'processed with errors' :
-                                         'partially processed';
-                    
                     vscode.window.showInformationMessage(
-                        `Issue #${issue.number} has been ${statusMessage} by the structured agent.`
+                        `Issue #${issue.number} has been processed by the agent.`
                     );
 
-                    // Format the response
-                    if (finalResponse) {
-                        const formattedDetails = this.formatStructuredResponse(finalResponse, stepUpdates);
-                        
+                    // Format the response from FinalAgentOutput to AgentResponse
+                    if (responseData && responseData.messages && responseData.summary) {
                         return {
-                            result: finalResponse.status === 'error' ? 'error' : 'complete',
-                            details: formattedDetails,
-                            structuredData: finalResponse // Include structured data for advanced usage
-                        };
+                            result: 'complete',
+                            details: '', // We'll handle formatting in HTML
+                            structuredData: responseData,
+                            agentMessages: responseData.messages,
+                            agentSummary: responseData.summary
+                        } as AgentResponse;
                     } else {
-                        // Fallback if no final response was received
                         return {
-                            result: 'partial',
-                            details: this.formatStepUpdates(stepUpdates),
-                            error: 'No final response received from agent'
+                            result: 'error',
+                            details: 'Invalid response format received from agent',
+                            error: 'Invalid response format'
                         };
                     }
-                    
                 } catch (error: any) {
                     console.error('Error in structured fixIssue:', error);
                     
@@ -169,5 +125,38 @@ export class StructuredAgentService {
         
         // Return a generic message instead of showing process steps
         return 'Issue processing completed successfully.';
+    }
+
+    private formatFinalAgentOutput(responseData: any): string {
+        // Format the FinalAgentOutput response from the server into a readable format
+        const { messages, summary } = responseData;
+        
+        let formattedOutput = '';
+        
+        // Add summary at the top
+        if (summary) {
+            formattedOutput += `## Summary\n${summary}\n\n`;
+        }
+        
+        // Add detailed messages if available
+        if (messages && Array.isArray(messages) && messages.length > 0) {
+            formattedOutput += `## Agent Messages\n\n`;
+            
+            messages.forEach((message: string, index: number) => {
+                // Skip the summary message if it's the last one and matches the summary
+                if (index === messages.length - 1 && message === summary) {
+                    return;
+                }
+                
+                formattedOutput += `**Step ${index + 1}:**\n${message}\n\n`;
+            });
+        }
+        
+        // If no detailed messages, just show the summary
+        if (!messages || messages.length === 0) {
+            formattedOutput = summary || 'No response details available.';
+        }
+        
+        return formattedOutput.trim();
     }
 } 
