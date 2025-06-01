@@ -4,23 +4,51 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bufio"
 	"fmt"
-
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"log"
+	"os"
+	"strings"
 )
 
 // initCmd represents the init command
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Init your github projects",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Initialize your GitHub configuration for medic-cli",
+	Long: `The 'init' command sets up your GitHub credentials and target repository 
+for use with the CodeFixer CLI.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+You will be prompted to enter your GitHub personal access token and the repository 
+you want to work with (in the format 'owner/repo'). This configuration will be saved 
+locally in a config file for future use.
+
+Examples:
+  medic-cli init
+  medic-cli init my-project`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("init called")
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Enter your github token:")
+		token, _ := reader.ReadString('\n')
+
+		fmt.Print("Enter your github repository (e.g. username/repo):")
+		repo, _ := reader.ReadString('\n')
+
+		token = strings.TrimSpace(token)
+		repo = strings.TrimSpace(repo)
+		viper.Set("github_token", token)
+		viper.Set("github_repository", repo)
+
+		viper.SetConfigName("config")
+		viper.SetConfigType("yaml")
+		viper.AddConfigPath(".")
+
+		err := viper.WriteConfigAs("config.yaml")
+		if err != nil {
+			log.Fatalf("Error writing config.yaml: %v", err)
+		}
+		print("Configuration file written to config.yaml")
 	},
 }
 

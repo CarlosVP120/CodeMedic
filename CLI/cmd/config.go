@@ -1,32 +1,73 @@
 /*
 Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
 import (
 	"fmt"
-
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"log"
+)
+
+var (
+	newGithubToken      string
+	newGithubRepository string
 )
 
 // configCmd represents the config command
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Update your GitHub token or repository settings",
+	Long: `The 'config' command allows you to update the GitHub personal access token 
+or repository associated with the CodeFixer CLI.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+This is useful if your token has changed or if you want to switch to a different repository 
+without re-running the full 'init' process.
+
+You can update either setting individually or both at once using the available flags.
+
+Examples:
+  medic-cli config --token ghp_abc123
+  medic-cli config --repo elcasvi/my-repo
+  medic-cli config --token ghp_abc123 --repo elcasvi/my-repo`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("config called")
+		viper.SetConfigName("config")
+		viper.SetConfigType("yaml")
+		viper.AddConfigPath(".")
+
+		err := viper.ReadInConfig()
+		if err != nil {
+			log.Fatalf("❌ Failed to read config: %v", err)
+		}
+
+		if newGithubToken != "" {
+			viper.Set("github_token", newGithubToken)
+			fmt.Println("🔑 GitHub token updated.")
+		}
+
+		if newGithubRepository != "" {
+			viper.Set("github_repository", newGithubRepository)
+			fmt.Println("📦 GitHub repository updated.")
+		}
+
+		if newGithubToken == "" && newGithubRepository == "" {
+			fmt.Println("⚠️  No changes made. Use --token and/or --repo flags.")
+			return
+		}
+
+		if err := viper.WriteConfig(); err != nil {
+			log.Fatalf("❌ Failed to write config: %v", err)
+		}
+
+		fmt.Println("✅ Configuration saved.")
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(configCmd)
+	configCmd.Flags().StringVarP(&newGithubToken, "token", "t", "", "Github Token")
+	configCmd.Flags().StringVarP(&newGithubRepository, "repository", "r", "", "Github Repository(owner/repo)")
 
 	// Here you will define your flags and configuration settings.
 
