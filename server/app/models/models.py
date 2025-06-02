@@ -22,5 +22,6 @@ class GitHubCredentials(BaseModel):
 class FinalAgentOutput(BaseModel):
     messages: List[str]
     summary: str
+    tool_path: List[str]
 class FixedCodeIssue(BaseModel):
     fixed_code: str

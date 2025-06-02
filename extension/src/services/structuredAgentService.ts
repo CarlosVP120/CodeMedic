@@ -57,19 +57,36 @@ export class StructuredAgentService {
                         `Issue #${issue.number} has been processed by the agent.`
                     );
 
-                    // Format the response from FinalAgentOutput to AgentResponse
-                    if (responseData && responseData.messages && responseData.summary) {
+                    // Format the response from Modal's structure {status, data}
+                    if (responseData && responseData.status === 'success' && responseData.data) {
+                        const agentData = responseData.data;
+                        
+                        if (agentData.messages && agentData.summary) {
+                            return {
+                                result: 'complete',
+                                details: this.formatFinalAgentOutput(agentData),
+                                structuredData: agentData,
+                                agentMessages: agentData.messages,
+                                agentSummary: agentData.summary,
+                                tool_path: agentData.tool_path || []
+                            } as AgentResponse;
+                        } else {
+                            return {
+                                result: 'error',
+                                details: 'Invalid agent response format - missing messages or summary',
+                                error: 'Invalid agent response format'
+                            };
+                        }
+                    } else if (responseData && responseData.status === 'error') {
                         return {
-                            result: 'complete',
-                            details: '', // We'll handle formatting in HTML
-                            structuredData: responseData,
-                            agentMessages: responseData.messages,
-                            agentSummary: responseData.summary
-                        } as AgentResponse;
+                            result: 'error',
+                            details: `Agent error: ${responseData.detail || 'Unknown error'}`,
+                            error: responseData.detail || 'Unknown error'
+                        };
                     } else {
                         return {
                             result: 'error',
-                            details: 'Invalid response format received from agent',
+                            details: 'Invalid response format received from Modal API',
                             error: 'Invalid response format'
                         };
                     }

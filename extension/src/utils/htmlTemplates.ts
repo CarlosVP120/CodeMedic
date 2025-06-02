@@ -242,86 +242,6 @@ export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
           height: 1rem;
         }
         
-        .agent-response-section {
-          margin-top: 2rem;
-          border-top: 1px solid var(--border-color);
-          padding-top: 1.5rem;
-          display: none;
-        }
-        
-        .agent-response-section.visible {
-          display: block;
-        }
-        
-        .agent-response-title {
-          font-size: 1.25rem;
-          font-weight: 600;
-          color: var(--text-primary);
-          margin-bottom: 1rem;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-        
-        .agent-response-content {
-          background-color: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: var(--radius-md);
-          padding: 1.25rem;
-          font-size: 0.9375rem;
-          line-height: 1.6;
-        }
-        
-        .agent-response-content strong {
-          font-weight: 600;
-          color: var(--text-primary);
-        }
-        
-        .agent-response-content b {
-          font-weight: 600;
-          color: var(--text-primary);
-        }
-        
-        .agent-response-content em {
-          font-style: italic;
-          color: var(--text-secondary);
-        }
-        
-        .agent-response-content a {
-          color: var(--primary-color);
-          text-decoration: none;
-          border-bottom: 1px solid transparent;
-          transition: var(--transition);
-        }
-        
-        .agent-response-content a:hover {
-          color: var(--primary-dark);
-          border-bottom-color: var(--primary-color);
-        }
-        
-        .agent-log {
-          margin-top: 1.5rem;
-        }
-        
-        .agent-log-title {
-          font-size: 1.125rem;
-          font-weight: 600;
-          color: var(--text-primary);
-          margin-bottom: 0.75rem;
-        }
-        
-        .agent-log-content {
-          background-color: #1e1e1e;
-          color: #e6e6e6;
-          font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
-          font-size: 0.875rem;
-          padding: 1.25rem;
-          border-radius: var(--radius-md);
-          max-height: 400px;
-          overflow-y: auto;
-          white-space: pre-wrap;
-        }
-        
         .loading {
           display: none;
           align-items: center;
@@ -404,23 +324,6 @@ export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
           <div class="loading-spinner"></div>
           <span>Processing issue with CodeMedic agent...</span>
         </div>
-        
-        <div id="agent-response" class="agent-response-section">
-          <h2 class="agent-response-title">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74c-3.6-.76-3.54-.75-3.67-.75-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z" fill="currentColor"/>
-            </svg>
-            Agent Solution
-          </h2>
-          <div id="agent-response-content" class="agent-response-content">
-            The agent's response will appear here after processing the issue.
-          </div>
-          
-          <div id="agent-log" class="agent-log" style="display: none;">
-            <h3 class="agent-log-title">Agent Log Output</h3>
-            <div id="agent-log-content" class="agent-log-content"></div>
-          </div>
-        </div>
       </div>
       
       <script>
@@ -462,14 +365,8 @@ export function getIssueHtml(issue: GitHubIssue, logoUrl: string): string {
               loading.classList.remove('visible');
             }
             
-            // Show response
-            const responseSection = document.getElementById('agent-response');
-            const responseContent = document.getElementById('agent-response-content');
-            
-            if (responseSection && responseContent) {
-              responseContent.innerHTML = message.response.details || 'No response details available';
-              responseSection.classList.add('visible');
-            }
+            // Note: Agent Solution section removed per user request
+            // Results will only appear in Agent Responses sidebar
           }
         });
         
@@ -489,6 +386,7 @@ export function getAgentResponseHtml(title: string, response: any, logoUrl?: str
   // Extract data for dropdowns
   const summary = response.agentSummary || 'No summary available';
   const messages = response.agentMessages || [];
+  const toolPath = response.tool_path || []; // Extract tool path from response
   
   // Filter out step 1 (prompt) and empty messages
   const filteredMessages = messages.filter((msg: string, index: number) => {
@@ -726,6 +624,40 @@ export function getAgentResponseHtml(title: string, response: any, logoUrl?: str
           text-align: center;
           padding: 2rem;
         }
+        
+        /* Tool Styles */
+        .tool-item {
+          padding: 0.5rem 0.75rem;
+          margin-bottom: 0.5rem;
+          background-color: var(--bg-accent);
+          border-radius: var(--radius-sm);
+          border-left: 3px solid var(--success-color);
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        
+        .tool-item:last-child {
+          margin-bottom: 0;
+        }
+        
+        .tool-icon {
+          font-size: 1rem;
+        }
+        
+        .tool-name {
+          font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+          font-size: 0.875rem;
+          color: var(--text-primary);
+          font-weight: 500;
+        }
+        
+        .no-tools {
+          color: var(--text-muted);
+          font-style: italic;
+          text-align: center;
+          padding: 2rem;
+        }
       </style>
     </head>
     <body>
@@ -761,6 +693,25 @@ export function getAgentResponseHtml(title: string, response: any, logoUrl?: str
           </div>
           <div class="section-content" id="summary-content">
             <div class="summary-content">${summary}</div>
+          </div>
+        </div>
+        
+        <!-- Used Tools Section -->
+        <div class="section">
+          <div class="section-header" onclick="toggleSection('tools')">
+            <h3 class="section-title">🔧 Used Tools (${toolPath.length})</h3>
+            <span class="dropdown-arrow" id="tools-arrow">▶</span>
+          </div>
+          <div class="section-content" id="tools-content">
+            ${toolPath.length > 0 ? 
+              toolPath.map((tool: string, index: number) => `
+                <div class="tool-item">
+                  <span class="tool-icon">🔧</span>
+                  <span class="tool-name">${tool}</span>
+                </div>
+              `).join('') : 
+              '<div class="no-tools">No tools were used during execution</div>'
+            }
           </div>
         </div>
         

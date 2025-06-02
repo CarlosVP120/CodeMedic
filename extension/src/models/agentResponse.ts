@@ -10,6 +10,7 @@ export interface AgentResponse {
     structuredData?: StructuredAgentResponse | any;
     agentMessages?: string[];
     agentSummary?: string;
+    tool_path?: string[];
 }
 
 export class AgentResponseItem extends vscode.TreeItem {
