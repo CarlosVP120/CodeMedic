@@ -386,6 +386,7 @@ export function getAgentResponseHtml(title: string, response: any, logoUrl?: str
   // Extract data for dropdowns
   const summary = response.agentSummary || 'No summary available';
   const messages = response.agentMessages || [];
+  const toolPath = response.tool_path || []; // Extract tool path from response
   
   // Filter out step 1 (prompt) and empty messages
   const filteredMessages = messages.filter((msg: string, index: number) => {
@@ -623,6 +624,40 @@ export function getAgentResponseHtml(title: string, response: any, logoUrl?: str
           text-align: center;
           padding: 2rem;
         }
+        
+        /* Tool Styles */
+        .tool-item {
+          padding: 0.5rem 0.75rem;
+          margin-bottom: 0.5rem;
+          background-color: var(--bg-accent);
+          border-radius: var(--radius-sm);
+          border-left: 3px solid var(--success-color);
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        
+        .tool-item:last-child {
+          margin-bottom: 0;
+        }
+        
+        .tool-icon {
+          font-size: 1rem;
+        }
+        
+        .tool-name {
+          font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+          font-size: 0.875rem;
+          color: var(--text-primary);
+          font-weight: 500;
+        }
+        
+        .no-tools {
+          color: var(--text-muted);
+          font-style: italic;
+          text-align: center;
+          padding: 2rem;
+        }
       </style>
     </head>
     <body>
@@ -658,6 +693,25 @@ export function getAgentResponseHtml(title: string, response: any, logoUrl?: str
           </div>
           <div class="section-content" id="summary-content">
             <div class="summary-content">${summary}</div>
+          </div>
+        </div>
+        
+        <!-- Used Tools Section -->
+        <div class="section">
+          <div class="section-header" onclick="toggleSection('tools')">
+            <h3 class="section-title">🔧 Used Tools (${toolPath.length})</h3>
+            <span class="dropdown-arrow" id="tools-arrow">▶</span>
+          </div>
+          <div class="section-content" id="tools-content">
+            ${toolPath.length > 0 ? 
+              toolPath.map((tool: string, index: number) => `
+                <div class="tool-item">
+                  <span class="tool-icon">🔧</span>
+                  <span class="tool-name">${tool}</span>
+                </div>
+              `).join('') : 
+              '<div class="no-tools">No tools were used during execution</div>'
+            }
           </div>
         </div>
         

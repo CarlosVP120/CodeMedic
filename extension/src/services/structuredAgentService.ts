@@ -67,7 +67,8 @@ export class StructuredAgentService {
                                 details: this.formatFinalAgentOutput(agentData),
                                 structuredData: agentData,
                                 agentMessages: agentData.messages,
-                                agentSummary: agentData.summary
+                                agentSummary: agentData.summary,
+                                tool_path: agentData.tool_path || []
                             } as AgentResponse;
                         } else {
                             return {

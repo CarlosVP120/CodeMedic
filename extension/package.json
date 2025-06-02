@@ -2,7 +2,7 @@
   "name": "codemedic",
   "displayName": "CodeMedic",
   "description": "AI-powered GitHub issue resolver with ReactAgent integration. Fix issues automatically using advanced language models.",
-  "version": "1.0.2",
+  "version": "1.0.5",
   "publisher": "gerardosanchezz",
   "license": "MIT",
   "icon": "resources/barraCodeMedic.png",
@@ -41,7 +41,8 @@
   "activationEvents": [
     "onStartupFinished",
     "onView:codemedic-issues",
-    "onView:codemedic-agent-responses"
+    "onView:codemedic-agent-responses",
+    "onView:codemedic-used-tools"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -64,6 +65,11 @@
       {
         "command": "codemedic.clearResponses",
         "title": "Clear Agent Responses",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "codemedic.clearUsedTools",
+        "title": "Clear Used Tools",
         "icon": "$(clear-all)"
       },
       {
@@ -99,6 +105,10 @@
         {
           "id": "codemedic-agent-responses",
           "name": "Agent Responses"
+        },
+        {
+          "id": "codemedic-used-tools",
+          "name": "Used Tools"
         }
       ]
     },
@@ -118,6 +128,11 @@
           "command": "codemedic.clearResponses",
           "when": "view == codemedic-agent-responses",
           "group": "navigation@1"
+        },
+        {
+          "command": "codemedic.clearUsedTools",
+          "when": "view == codemedic-used-tools",
+          "group": "navigation"
         }
       ],
       "view/item/context": [

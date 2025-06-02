@@ -3,6 +3,7 @@ import * as path from 'path';
 import { GitHubIssue } from '../models/issue';
 import { getIssueHtml } from '../utils/htmlTemplates';
 import { AgentResponseProvider } from '../providers/agentResponseProvider';
+import { UsedToolsProvider } from '../providers/usedToolsProvider';
 import { StructuredAgentService } from '../services/structuredAgentService';
 import { GitHubService } from '../services/githubService';
 import { ISSUES_VIEW_ID } from '../utils/constants';
@@ -11,7 +12,8 @@ export function registerIssueCommands(
     context: vscode.ExtensionContext,
     issueProvider: any,
     agentResponseProvider: AgentResponseProvider,
-    githubService: GitHubService
+    githubService: GitHubService,
+    usedToolsProvider: UsedToolsProvider
 ): void {
     // Command to show issue panel
     context.subscriptions.push(
@@ -33,7 +35,7 @@ export function registerIssueCommands(
                 }
                 if (issueItem.contextValue === "issue") {
                     console.log('🔧 Opening issue panel for issue:', issueItem.issue.number);
-                    showIssuePanel(issueItem.issue, context, agentResponseProvider, githubService);
+                    showIssuePanel(issueItem.issue, context, agentResponseProvider, githubService, usedToolsProvider);
                 } else {
                     vscode.window.showErrorMessage("Please select a valid GitHub issue.");
                 }
@@ -44,7 +46,7 @@ export function registerIssueCommands(
 
 }
 
-function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, agentResponseProvider: AgentResponseProvider, githubService: GitHubService) {    
+function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, agentResponseProvider: AgentResponseProvider, githubService: GitHubService, usedToolsProvider: UsedToolsProvider) {    
     const panel = vscode.window.createWebviewPanel(
         "issuePanel",
         `Issue #${issue.number}: ${issue.title}`,
@@ -71,7 +73,7 @@ function showIssuePanel(issue: GitHubIssue, context: vscode.ExtensionContext, ag
     panel.webview.onDidReceiveMessage(
         async (message) => {
             if (message.command === "fixIssueStructured") {
-                await fixIssueStructured(issue, panel.webview, agentResponseProvider, githubService);
+                await fixIssueStructured(issue, panel.webview, agentResponseProvider, githubService, usedToolsProvider);
             } else {
                 console.log('❓ Unknown command:', message.command);
             }
@@ -85,7 +87,8 @@ export async function fixIssueStructured(
     issue: GitHubIssue, 
     webview?: vscode.Webview, 
     agentResponseProvider?: AgentResponseProvider,
-    githubService?: GitHubService
+    githubService?: GitHubService,
+    usedToolsProvider?: UsedToolsProvider
 ): Promise<void> {
     try {
         if (!githubService) {
@@ -114,6 +117,11 @@ export async function fixIssueStructured(
         // If agent response provider is provided, add the response to it
         if (agentResponseProvider) {
             agentResponseProvider.addResponse(issue, response);
+        }
+
+        // If used tools provider is provided and response has tool path, add it
+        if (usedToolsProvider && response.structuredData && response.structuredData.tool_path) {
+            usedToolsProvider.addToolUsage(issue, response.structuredData.tool_path);
         }
     } catch (error) {
         vscode.window.showErrorMessage(`Error fixing issue with structured agent: ${error}`);
