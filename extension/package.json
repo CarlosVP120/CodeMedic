@@ -1,15 +1,42 @@
 {
   "name": "codemedic",
   "displayName": "CodeMedic",
-  "description": "Manage and resolve GitHub issues directly within VSCode",
-  "version": "0.0.1",
+  "description": "AI-powered GitHub issue resolver with ReactAgent integration. Fix issues automatically using advanced language models.",
+  "version": "1.0.2",
+  "publisher": "gerardosanchezz",
+  "license": "MIT",
   "icon": "resources/barraCodeMedic.png",
+  "galleryBanner": {
+    "color": "#15426d",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CarlosVP120/CodeMedic.git"
+  },
+  "homepage": "https://github.com/CarlosVP120/CodeMedic#readme",
+  "bugs": {
+    "url": "https://github.com/CarlosVP120/CodeMedic/issues"
+  },
+  "keywords": [
+    "github",
+    "issues",
+    "ai",
+    "automation",
+    "bug-fixing",
+    "react-agent",
+    "code-generation",
+    "developer-tools",
+    "git",
+    "modal"
+  ],
   "engines": {
     "vscode": "^1.99.0"
   },
   "categories": [
     "Other",
-    "SCM Providers"
+    "SCM Providers",
+    "Machine Learning"
   ],
   "activationEvents": [
     "onStartupFinished",
@@ -52,13 +79,7 @@
     ],
     "configuration": {
       "title": "CodeMedic",
-      "properties": {
-        "codemedic.openaiApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "API key for OpenAI to enable AI-powered issue solutions"
-        }
-      }
+      "properties": {}
     },
     "viewsContainers": {
       "activitybar": [

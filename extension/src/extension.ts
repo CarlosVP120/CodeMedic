@@ -67,11 +67,12 @@ export function activate(context: vscode.ExtensionContext) {
     if (!githubService.isAuthenticated()) {
       vscode.window
         .showInformationMessage(
-          "Authenticate with GitHub to view and manage issues",
-          "Authenticate"
+          `🩺 Welcome to CodeMedic! Authenticate with GitHub to start fixing issues with AI`,
+          "🔐 Authenticate",
+          "Later"
         )
         .then((selection) => {
-          if (selection === "Authenticate") {
+          if (selection === "🔐 Authenticate") {
             vscode.commands.executeCommand(CMD_AUTHENTICATE);
           }
         });

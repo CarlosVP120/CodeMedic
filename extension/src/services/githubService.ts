@@ -146,10 +146,8 @@ export class GitHubService {
     try {
       console.log("Getting issues...");
       if (!this.octokit) {
-        console.log("No Octokit instance available");
-        vscode.window.showErrorMessage(
-          "GitHub token not configured. Please authenticate first."
-        );
+        console.log("No Octokit instance available - not authenticated");
+        // Don't show error message here, let the IssueProvider handle the UI
         return [];
       }
 
@@ -195,9 +193,13 @@ export class GitHubService {
         console.error("Response status:", error.response.status);
         console.error("Response data:", error.response.data);
       }
-      vscode.window.showErrorMessage(
-        `Failed to fetch issues: ${error.message}`
-      );
+      
+      // Only show error for actual API errors, not authentication issues
+      if (this.octokit) {
+        vscode.window.showErrorMessage(
+          `Failed to fetch issues: ${error.message}`
+        );
+      }
       return [];
     }
   }
