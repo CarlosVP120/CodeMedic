@@ -4,6 +4,7 @@ uvicorn
 pydantic
 requests
 langchain-core
+langchain_openai
 langchain-community
 langgraph
 python-dotenv

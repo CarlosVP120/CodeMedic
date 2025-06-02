@@ -3,6 +3,7 @@ from langgraph.prebuilt import create_react_agent
 from dotenv import load_dotenv
 import os
 import functools
+from langchain_openai import AzureChatOpenAI
 
 from app.models.models import GitHubIssue, GitHubCredentials,  FinalAgentOutput
 # Import tools directly first to test
@@ -32,6 +33,8 @@ class ReactAgent:
         env_path = 'app/.env'
         load_dotenv(env_path)
         self.hf_token =os.getenv("HUGGINGFACEHUB_API_TOKEN")
+        self.api_key = os.getenv("API_KEY")
+        self.endpoint = os.getenv("ENDPOINT")
         self.github_credentials = github_credentials
 
     def run(self, github_issue: GitHubIssue):
@@ -49,18 +52,30 @@ class ReactAgent:
             create_pull_request
         ]
         # Create base LLM with authentication
-        base_llm = HuggingFaceEndpoint(
-            model="Qwen/Qwen3-4B",
-            task="text-generation",
-            max_new_tokens=1000,  # Increased token limit
-            do_sample=False,
-            repetition_penalty=1.03,
-            temperature=0.1,  # Lower temperature for more consistent behavior
-            huggingfacehub_api_token=self.hf_token  # Add the API token
+        # base_llm = HuggingFaceEndpoint(
+        #     model="Qwen/Qwen3-4B",
+        #     task="text-generation",
+        #     max_new_tokens=1000,  # Increased token limit
+        #     do_sample=False,
+        #     repetition_penalty=1.03,
+        #     temperature=0.1,  # Lower temperature for more consistent behavior
+        #     huggingfacehub_api_token=self.hf_token  # Add the API token
+        # )
+
+        llm = AzureChatOpenAI(
+            azure_endpoint=self.endpoint,
+            azure_deployment="gpt-4o",
+            api_version="2025-01-01-preview",
+            temperature=0,
+            max_tokens=1000,
+            timeout=None,
+            max_retries=2,
+            api_key=self.api_key
         )
+
         
         # Wrap it with ChatHuggingFace for tool support
-        llm = ChatHuggingFace(llm=base_llm)
+        #llm = ChatHuggingFace(llm=base_llm)
 
         agent_graph = create_react_agent(model=llm, tools=tools)
 
