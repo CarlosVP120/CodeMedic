@@ -1,0 +1,20 @@
+--extra-index-url https://download.pytorch.org/whl/cu126
+fastapi[standard]
+uvicorn
+pydantic
+requests
+langchain-core
+langchain-community
+langgraph
+python-dotenv
+PyGithub
+langchain-huggingface
+huggingface_hub[hf_xet]
+peft
+unsloth
+bitsandbytes
+accelerate
+transformers
+torch
+torchvision
+torchaudio

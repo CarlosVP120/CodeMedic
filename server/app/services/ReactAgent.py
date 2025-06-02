@@ -1,7 +1,6 @@
-# from langchain_openai import AzureChatOpenAI
-from langchain_huggingface import HuggingFaceEndpoint, HuggingFacePipeline, ChatHuggingFace
+from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
 from langgraph.prebuilt import create_react_agent
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 import os
 import functools
 
@@ -30,39 +29,10 @@ def log_tool_call(tool_func):
 
 class ReactAgent:
     def __init__(self, github_credentials:GitHubCredentials):
-        # Load environment variables with better path handling
-        env_path = find_dotenv()
-        if env_path:
-            load_dotenv(env_path)
-            print(f"✅ .env file found at: {env_path}")
-        else:
-            # Try loading from current directory and parent directories
-            load_dotenv()
-            print("⚠️ .env file not found with find_dotenv, trying default locations")
-        
+        env_path = 'app/.env'
+        load_dotenv(env_path)
+        self.hf_token =os.getenv("HUGGINGFACEHUB_API_TOKEN")
         self.github_credentials = github_credentials
-        
-        # Load and validate HuggingFace token here
-        self.hf_token = self._load_hf_token()
-
-    def _load_hf_token(self):
-        """Load and validate HuggingFace token"""
-        # Try different possible variable names
-        token_names = ["HUGGINGFACE_HUB_TOKEN", "HUGGINGFACEHUB_API_TOKEN", "HF_TOKEN"]
-        
-        for token_name in token_names:
-            token = os.getenv(token_name)
-            if token:
-                print(f"✅ Found HuggingFace token with variable name: {token_name}")
-                return token
-        
-        # If no token found, print debug info
-        print("❌ HuggingFace token not found. Available environment variables:")
-        for key in sorted(os.environ.keys()):
-            if 'HF' in key.upper() or 'HUGGING' in key.upper():
-                print(f"   {key}: {'*' * len(os.environ[key]) if os.environ[key] else 'None'}")
-        
-        raise ValueError("HuggingFace token not found in environment variables. Please check your .env file.")
 
     def run(self, github_issue: GitHubIssue):
         # Clear the tool log for this run

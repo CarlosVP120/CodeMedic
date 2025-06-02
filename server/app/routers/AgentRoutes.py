@@ -10,7 +10,7 @@ class FixCodeRequest(BaseModel):
     github_credentials: GitHubCredentials
     issue_data: GitHubIssue
 
-@router.post(path="/issue/structured")
+@router.post(path="/")
 async def fix_code_structured(fix_code_request: FixCodeRequest):
     """New endpoint using StructuredAgent with JsonOutputParser"""
     try:

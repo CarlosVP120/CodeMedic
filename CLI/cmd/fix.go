@@ -54,7 +54,7 @@ Examples:
 			if err != nil {
 				log.Fatalf("❌ Error while fixing issue #%d: %v", issue.Number, err)
 			}
-			fmt.Printf("✅ AI Response:\n%+v\n", agentResponse)
+			printAgentResponse(agentResponse)
 			return
 		}
 
@@ -97,10 +97,12 @@ Examples:
 
 		agentResponse, err := callFixIssue(request)
 		s.Stop()
+
 		if err != nil {
-			log.Fatalf("❌ Error while fixing issue #%d: %v", selectedIssue.Number, err)
+			log.Fatalf("❌ Error while fixing issue #%d: %v\nRun with DEBUG=1 for more information.", selectedIssue.Number, err)
 		}
-		fmt.Printf("✅ AI Response:\n%+v\n", agentResponse)
+		fmt.Println("\n✅ Successfully received AI response!")
+		printAgentResponse(agentResponse)
 	},
 }
 
@@ -121,4 +123,26 @@ func init() {
 
 func callFixIssue(req utilities.FixCodeRequest) (utilities.AgentResponse, error) {
 	return utilities.FixIssue(req)
+}
+func printAgentResponse(resp utilities.AgentResponse) {
+	fmt.Println("🧠 AI Response Summary:")
+	fmt.Printf("📋 Summary: %s\n", resp.Summary)
+
+	fmt.Println("\n💬 Messages:")
+	if len(resp.Messages) == 0 {
+		fmt.Println("  (No messages)")
+	} else {
+		for i, msg := range resp.Messages {
+			fmt.Printf("  %d. %s\n", i+1, msg)
+		}
+	}
+
+	fmt.Println("\n🛠️ Tool Calls:")
+	if len(resp.ToolPath) == 0 {
+		fmt.Println("  (No tools used)")
+	} else {
+		for i, tool := range resp.ToolPath {
+			fmt.Printf("  %d. %s\n", i+1, tool)
+		}
+	}
 }

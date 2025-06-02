@@ -22,9 +22,7 @@ type FixCodeRequest struct {
 }
 
 type AgentResponse struct {
-	Status string `json:"status"`
-	Data   struct {
-		Messages []string `json:"messages"`
-		Summary  string   `json:"summary"`
-	} `json:"data"`
+	Messages []string `json:"messages"`
+	Summary  string   `json:"summary"`
+	ToolPath []string `json:"tool_path"`
 }
