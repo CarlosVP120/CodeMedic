@@ -12,13 +12,22 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "medic-cli",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "AI-powered GitHub issue fixer from the command line",
+	Long: `Medic CLI is a developer productivity tool that uses AI to analyze and fix issues from a GitHub repository.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+Features:
+  - Authenticate with your GitHub token
+  - Retrieve and list open issues
+  - Send issues to an AI agent for automatic resolution
+  - Automatically create branches, apply fixes, and open pull requests
+
+Examples:
+  medic-cli auth --token <your_token>
+  medic-cli list-issues
+  medic-cli fix --issue 42
+  medic-cli fix-all
+
+This tool streamlines the debugging and patching process by integrating GitHub and AI directly into your terminal workflow.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },

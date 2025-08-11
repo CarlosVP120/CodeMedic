@@ -1,9 +1,9 @@
-# from langchain_openai import AzureChatOpenAI
-from langchain_huggingface import HuggingFaceEndpoint, HuggingFacePipeline, ChatHuggingFace
+from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
 from langgraph.prebuilt import create_react_agent
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 import os
 import functools
+from langchain_openai import AzureChatOpenAI
 
 from app.models.models import GitHubIssue, GitHubCredentials,  FinalAgentOutput
 # Import tools directly first to test
@@ -30,39 +30,12 @@ def log_tool_call(tool_func):
 
 class ReactAgent:
     def __init__(self, github_credentials:GitHubCredentials):
-        # Load environment variables with better path handling
-        env_path = find_dotenv()
-        if env_path:
-            load_dotenv(env_path)
-            print(f"✅ .env file found at: {env_path}")
-        else:
-            # Try loading from current directory and parent directories
-            load_dotenv()
-            print("⚠️ .env file not found with find_dotenv, trying default locations")
-        
+        env_path = 'app/.env'
+        load_dotenv(env_path)
+        self.hf_token =os.getenv("HUGGINGFACEHUB_API_TOKEN")
+        self.api_key = os.getenv("API_KEY")
+        self.endpoint = os.getenv("ENDPOINT")
         self.github_credentials = github_credentials
-        
-        # Load and validate HuggingFace token here
-        self.hf_token = self._load_hf_token()
-
-    def _load_hf_token(self):
-        """Load and validate HuggingFace token"""
-        # Try different possible variable names
-        token_names = ["HUGGINGFACE_HUB_TOKEN", "HUGGINGFACEHUB_API_TOKEN", "HF_TOKEN"]
-        
-        for token_name in token_names:
-            token = os.getenv(token_name)
-            if token:
-                print(f"✅ Found HuggingFace token with variable name: {token_name}")
-                return token
-        
-        # If no token found, print debug info
-        print("❌ HuggingFace token not found. Available environment variables:")
-        for key in sorted(os.environ.keys()):
-            if 'HF' in key.upper() or 'HUGGING' in key.upper():
-                print(f"   {key}: {'*' * len(os.environ[key]) if os.environ[key] else 'None'}")
-        
-        raise ValueError("HuggingFace token not found in environment variables. Please check your .env file.")
 
     def run(self, github_issue: GitHubIssue):
         # Clear the tool log for this run
@@ -79,18 +52,30 @@ class ReactAgent:
             create_pull_request
         ]
         # Create base LLM with authentication
-        base_llm = HuggingFaceEndpoint(
-            model="Qwen/Qwen3-4B",
-            task="text-generation",
-            max_new_tokens=1000,  # Increased token limit
-            do_sample=False,
-            repetition_penalty=1.03,
-            temperature=0.1,  # Lower temperature for more consistent behavior
-            huggingfacehub_api_token=self.hf_token  # Add the API token
+        # base_llm = HuggingFaceEndpoint(
+        #     model="Qwen/Qwen3-4B",
+        #     task="text-generation",
+        #     max_new_tokens=1000,  # Increased token limit
+        #     do_sample=False,
+        #     repetition_penalty=1.03,
+        #     temperature=0.1,  # Lower temperature for more consistent behavior
+        #     huggingfacehub_api_token=self.hf_token  # Add the API token
+        # )
+
+        llm = AzureChatOpenAI(
+            azure_endpoint=self.endpoint,
+            azure_deployment="gpt-4o",
+            api_version="2025-01-01-preview",
+            temperature=0,
+            max_tokens=1000,
+            timeout=None,
+            max_retries=2,
+            api_key=self.api_key
         )
+
         
         # Wrap it with ChatHuggingFace for tool support
-        llm = ChatHuggingFace(llm=base_llm)
+        #llm = ChatHuggingFace(llm=base_llm)
 
         agent_graph = create_react_agent(model=llm, tools=tools)
 

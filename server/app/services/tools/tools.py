@@ -160,17 +160,21 @@ def fix_code_issues(buggy_code: str) -> dict:
             dict: A dictionary containing the corrected version of the code. If the model fails to produce valid JSON,
                   an error message is included in the output.
         """
+    import torch
+    cuda_available = torch.cuda.is_available()
+
+    if cuda_available:
+        device_id = 0  # You can change to 1,2,3 if you want other GPUs
+        torch.cuda.set_device(device_id)
+        # device = torch.device(f"cuda:{device_id}")
+        device = torch.device(f"cuda:{device_id}")
+        print(f"🖥️ Using GPU {device_id}: {torch.cuda.get_device_name(device_id)}")
+    else:
+        device = torch.device("cpu")
+        print("⚙️ No GPU available, using CPU.")
+
+    print(f"Device selected: {device}")
     load_dotenv(dotenv_path=".env")
-    endpoint_gpt4 = os.getenv("AZURE_OPENAI_ENDPOINT_GPT4")
-    # llm_test = AzureChatOpenAI(
-    #     azure_endpoint=endpoint_gpt4,
-    #     azure_deployment="gpt-4o",
-    #     api_version="2025-01-01-preview",
-    #     temperature=0,
-    #     max_tokens=1000,
-    #     timeout=None,
-    #     max_retries=2,
-    # )
     print("Generating code...")
 
     model_id = "TheCasvi/Qwen3-4B-CodeMedic-adapter"
